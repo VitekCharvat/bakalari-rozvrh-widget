@@ -112,13 +112,14 @@ test("shrnutiDne počítá jen hodiny, které neodpadají", () => {
   assert.deepEqual(R.konecDne(utery), kdy("2026-10-27", "15:10"))
 })
 
-test("barvaPredmetu je stálá a v rozsahu palety", () => {
-  const zkratky = ["MAT", "ANJ", "PVA", "WEB", "TEV", "CJL", "EKO", "SPJ", "VIK"]
-  const barvy = zkratky.map(z => R.barvaPredmetu(z, 8))
-  assert.deepEqual(barvy, zkratky.map(z => R.barvaPredmetu(z, 8)))
-  assert.ok(barvy.every(b => Number.isInteger(b) && b >= 0 && b < 8))
-  assert.ok(new Set(barvy).size > 3, "předměty nemají všechny stejnou barvu")
-  assert.equal(R.barvaPredmetu("", 8), R.barvaPredmetu(null, 8))
+test("barva učebny: nejčastější učebna týdne má první barvu, stejná učebna stejnou", () => {
+  // Fixture týden: PC3 3×, pak 104, 212 a TĚL po 2× (shoda se řadí podle názvu)
+  const barvy = {}
+  for (const den of dny1) for (const h of den.hodiny) if (h.ucebna) barvy[h.ucebna] = h.barvaUcebny
+  assert.deepEqual(barvy, { PC3: 0, 104: 1, 212: 2, TĚL: 3 })
+  const pc3 = dny1.flatMap(d => d.hodiny).filter(h => h.ucebna === "PC3")
+  assert.ok(pc3.length === 3 && pc3.every(h => h.barvaUcebny === 0))
+  assert.equal(utery.hodiny.find(h => h.zrusena).barvaUcebny, null, "bez učebny bez barvy")
 })
 
 test("popisDne rozliší dnes, zítra a další dny", () => {

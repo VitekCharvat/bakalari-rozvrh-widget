@@ -18,7 +18,7 @@ Rozvrh z Bakalářů přímo na ploše iPhonu. Widget ukazuje čas hodiny, před
 
 - **Dnešní rozvrh od aktuální hodiny dál.** Odučené hodiny z widgetu zmizí. Probíhající hodina je zvýrazněná a ukazuje živý odpočet do konce.
 - **Posouvání po stránkách.** Když se den nevejde, dáš na plochu dva widgety do zásobníku a listuješ mezi nimi prstem (návod níž). Tečky v hlavičce ukazují, na které stránce jsi.
-- **Učebna v barevném štítku**, každý předmět má svou stálou barvu.
+- **Učebna v barevném štítku**, každá učebna má svou barvu. Nejčastější učebna v týdnu (kmenová třída) je vždycky modrá.
 - **Po vyučování ukáže další školní den.** Večer zítřek, v pátek pondělí, přes prázdniny první den, kdy se zase učí.
 - **Suplování a změny** jsou oranžově, hodina, která odpadá, má místo učebny „odpadá".
 - **Klepnutím na widget** se otevře celý den včetně učitele, tématu a popisu změny.
@@ -50,6 +50,8 @@ Widgety na iPhonu se posouvat nedají, ale dají se skládat na sebe a listovat 
 4. Mezi stránkami listuješ tahem prstem nahoru a dolů. Když iPhone stránky přepíná sám, vypni v úpravě zásobníku **Inteligentní otáčení**.
 
 Při dlouhém dni přidej klidně i třetí stránku s parametrem `3`.
+
+Jeden samotný widget se posouvat nedá a v **Náhledu widgetu** ve Scriptable taky ne. Náhled se proto zeptá, kterou stránku ukázat.
 
 ## Bezpečnost
 

@@ -8,7 +8,7 @@
 // Ukazuje dnesni rozvrh (po vyucovani zitrejsi) s casem, predmetem a ucebnou.
 // Licence MIT. Prihlasovaci udaje zustavaji jen v Klicence (Keychain) tohoto iPhonu.
 
-const VERZE = "1.1.0"
+const VERZE = "1.1.1"
 const KLIC = "bakalari-rozvrh."
 const CACHE = "bakalari-rozvrh-cache.json"
 const DNY = ["ned\u011ble", "pond\u011bl\u00ed", "\u00fater\u00fd", "st\u0159eda", "\u010dtvrtek", "p\u00e1tek", "sobota"]
@@ -66,6 +66,21 @@ function sestavDny(odpoved) {
   const predmety = mapa(odpoved.Subjects)
   const ucebny = mapa(odpoved.Rooms)
   const ucitele = mapa(odpoved.Teachers)
+  const nazevUcebny = u => (u ? (u.Abbrev || u.Name || "").trim() : "")
+
+  // Kazda ucebna ma svou barvu. Poradi podle toho, jak casto se v ni v tydnu uci,
+  // takze kmenova trida dostane vzdycky prvni barvu (modrou).
+  const pocty = {}
+  for (const den of odpoved.Days || []) {
+    for (const a of den.Atoms || []) {
+      const nazev = nazevUcebny(ucebny[id(a.RoomId)])
+      if (nazev) pocty[nazev] = (pocty[nazev] || 0) + 1
+    }
+  }
+  const poradiUceben = {}
+  Object.keys(pocty)
+    .sort((a, b) => pocty[b] - pocty[a] || (a < b ? -1 : a > b ? 1 : 0))
+    .forEach((nazev, i) => (poradiUceben[nazev] = i))
 
   return (odpoved.Days || []).map(den => {
     const datum = String(den.Date).slice(0, 10)
@@ -78,7 +93,7 @@ function sestavDny(odpoved) {
         ? { typ: a.Change.ChangeType || "", popis: (a.Change.Description || "").trim() }
         : null
       if (!predmet && !zmena) continue // pr\u00e1zdn\u00e1 hodina
-      const ucebna = ucebny[id(a.RoomId)]
+      const ucebna = nazevUcebny(ucebny[id(a.RoomId)])
       const ucitel = ucitele[id(a.TeacherId)]
       polozky.push({
         cislo: String(h.Caption).trim(),
@@ -87,7 +102,8 @@ function sestavDny(odpoved) {
         konec: casNaDatum(datum, h.EndTime),
         predmet: predmet ? (predmet.Abbrev || predmet.Name || "").trim() : "",
         predmetNazev: predmet ? (predmet.Name || predmet.Abbrev || "").trim() : "",
-        ucebna: ucebna ? (ucebna.Abbrev || ucebna.Name || "").trim() : "",
+        ucebna,
+        barvaUcebny: ucebna in poradiUceben ? poradiUceben[ucebna] : null,
         ucitel: ucitel ? (ucitel.Name || ucitel.Abbrev || "").trim() : "",
         tema: (a.Theme || "").trim(),
         zmena,
@@ -168,12 +184,6 @@ function shrnutiDne(den, ted) {
   return `${probehnou.length} ${tvarHodin(probehnou.length)} \u00b7 ${casText(probehnou[0].zacatek)}\u2013${konec}`
 }
 
-// Stejny predmet ma vzdycky stejnou barvu, bez ohledu na tyden nebo poradi v rozvrhu
-function barvaPredmetu(zkratka, pocetBarev) {
-  let hash = 5381
-  for (const znak of String(zkratka || "")) hash = (hash * 33 + znak.charCodeAt(0)) >>> 0
-  return hash % pocetBarev
-}
 
 function popisDne(datum, ted) {
   const d = casNaDatum(datum, "0:00")
@@ -327,7 +337,8 @@ async function nactiStav(ted) {
 
 const MOTIVY = { auto: "Automaticky", tmavy: "Tmav\u00fd", svetly: "Sv\u011btl\u00fd" }
 
-// Barvy predmetu: [svetly rezim, tmavy rezim]. Oranzova chybi schvalne, patri zmenam v rozvrhu.
+// Barvy uceben v poradi podle cetnosti: [svetly rezim, tmavy rezim].
+// Oranzova chybi schvalne, patri zmenam v rozvrhu.
 const PALETA = [
   ["#0A66D8", "#64B5FF"],
   ["#1E7F45", "#5BD68A"],
@@ -356,7 +367,8 @@ function barvy(motiv = "auto") {
     zvyrazneni: vyber("#000000", "#FFFFFF", 0.05, 0.08),
     teckaNeaktivni: vyber("#D1D1D6", "#48484A"),
     stitekZmena: stitek("#B35C00", "#FFB340"),
-    stitekPredmetu: zkratka => stitek(...PALETA[barvaPredmetu(zkratka, PALETA.length)]),
+    stitekUcebny: poradi =>
+      poradi == null ? stitek("#6E6E73", "#98989F") : stitek(...PALETA[poradi % PALETA.length]),
   }
 }
 
@@ -421,14 +433,15 @@ function pridejHodinu(sloupec, h, ted, B) {
 
   const radek = blok.addStack()
   radek.centerAlignContent()
-  const barvaPredmetu = h.zrusena ? B.tlumeny : h.zmena ? B.zmena : B.text
-  pridejText(radek, h.predmet || "\u2014", Font.boldSystemFont(15), barvaPredmetu, 0.7)
+  const barvaNazvu = h.zrusena ? B.tlumeny : h.zmena ? B.zmena : B.text
+  pridejText(radek, h.predmet || "\u2014", Font.boldSystemFont(15), barvaNazvu, 0.7)
   radek.addSpacer()
 
   const stitek = radek.addStack()
   stitek.setPadding(1, 6, 1, 6)
   stitek.cornerRadius = 5
-  const barva = h.zmena ? B.stitekZmena : B.stitekPredmetu(h.predmet)
+  // Ucebna drzi svou barvu i pri suplovani, zmenu hlasi oranzovy predmet a \u201esupl.\u201c
+  const barva = h.zrusena ? B.stitekZmena : B.stitekUcebny(h.barvaUcebny)
   stitek.backgroundColor = barva.pozadi
   const fontStitku = h.zrusena ? Font.semiboldSystemFont(11) : Font.boldSystemFont(13)
   pridejText(stitek, h.zrusena ? "odpad\u00e1" : h.ucebna || "\u2014", fontStitku, barva.text, 0.7)
@@ -532,7 +545,7 @@ async function ukazRozvrh(ted) {
     kde.widthWeight = 18
     kde.rightAligned()
     kde.titleFont = Font.boldSystemFont(17)
-    kde.titleColor = h.zrusena || h.zmena ? B.zmena : B.akcent
+    kde.titleColor = h.zrusena ? B.zmena : B.stitekUcebny(h.barvaUcebny).text
     tabulka.addRow(r)
   }
   await tabulka.present()
@@ -596,12 +609,33 @@ async function menu(ted) {
   a.addCancelAction("Zav\u0159\u00edt")
   const volba = await a.present()
   if (volba === 0) await ukazRozvrh(ted)
-  if (volba === 1) await vytvorWidget(await nactiStav(ted), ted).presentMedium()
+  if (volba === 1) await nahledWidgetu(ted)
   if (volba === 2) await vyberMotiv()
   if (volba === 3) {
     odhlasit()
     await prihlasovaciDialog()
   }
+}
+
+// Nahled ve Scriptable posouvat nejde (posouva se az zasobnik na plose), proto vyber stranky
+async function nahledWidgetu(ted) {
+  const stav = await nactiStav(ted)
+  let cislo = 1
+  if (stav.den) {
+    const { sloupcu, naSloupec } = rozlozeni("medium")
+    const { stranek } = stranka(stav.den, ted, sloupcu * naSloupec)
+    if (stranek > 1) {
+      const a = new Alert()
+      a.title = "Kterou str\u00e1nku uk\u00e1zat?"
+      a.message = "Na plo\u0161e mezi nimi listuje\u0161 v z\u00e1sobn\u00edku widget\u016f, n\u00e1vod je v README."
+      for (let i = 1; i <= stranek; i++) a.addAction(`Str\u00e1nka ${i}`)
+      a.addCancelAction("Zru\u0161it")
+      const volba = await a.present()
+      if (volba === -1) return
+      cislo = volba + 1
+    }
+  }
+  await vytvorWidget(stav, ted, cislo).presentMedium()
 }
 
 async function vyberMotiv() {
@@ -652,7 +686,6 @@ if (typeof module !== "undefined") {
     tvarHodin,
     konecDne,
     shrnutiDne,
-    barvaPredmetu,
     popisDne,
     dalsiObnova,
   }

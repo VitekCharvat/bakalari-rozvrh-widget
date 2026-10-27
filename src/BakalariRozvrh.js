@@ -6,7 +6,7 @@
 // Ukazuje dnešní rozvrh (po vyučování zítřejší) s časem, předmětem a učebnou.
 // Licence MIT. Přihlašovací údaje zůstávají jen v Klíčence (Keychain) tohoto iPhonu.
 
-const VERZE = "1.1.0"
+const VERZE = "1.1.1"
 const KLIC = "bakalari-rozvrh."
 const CACHE = "bakalari-rozvrh-cache.json"
 const DNY = ["neděle", "pondělí", "úterý", "středa", "čtvrtek", "pátek", "sobota"]
@@ -64,6 +64,21 @@ function sestavDny(odpoved) {
   const predmety = mapa(odpoved.Subjects)
   const ucebny = mapa(odpoved.Rooms)
   const ucitele = mapa(odpoved.Teachers)
+  const nazevUcebny = u => (u ? (u.Abbrev || u.Name || "").trim() : "")
+
+  // Každá učebna má svou barvu. Pořadí podle toho, jak často se v ní v týdnu učí,
+  // takže kmenová třída dostane vždycky první barvu (modrou).
+  const pocty = {}
+  for (const den of odpoved.Days || []) {
+    for (const a of den.Atoms || []) {
+      const nazev = nazevUcebny(ucebny[id(a.RoomId)])
+      if (nazev) pocty[nazev] = (pocty[nazev] || 0) + 1
+    }
+  }
+  const poradiUceben = {}
+  Object.keys(pocty)
+    .sort((a, b) => pocty[b] - pocty[a] || (a < b ? -1 : a > b ? 1 : 0))
+    .forEach((nazev, i) => (poradiUceben[nazev] = i))
 
   return (odpoved.Days || []).map(den => {
     const datum = String(den.Date).slice(0, 10)
@@ -76,7 +91,7 @@ function sestavDny(odpoved) {
         ? { typ: a.Change.ChangeType || "", popis: (a.Change.Description || "").trim() }
         : null
       if (!predmet && !zmena) continue // prázdná hodina
-      const ucebna = ucebny[id(a.RoomId)]
+      const ucebna = nazevUcebny(ucebny[id(a.RoomId)])
       const ucitel = ucitele[id(a.TeacherId)]
       polozky.push({
         cislo: String(h.Caption).trim(),
@@ -85,7 +100,8 @@ function sestavDny(odpoved) {
         konec: casNaDatum(datum, h.EndTime),
         predmet: predmet ? (predmet.Abbrev || predmet.Name || "").trim() : "",
         predmetNazev: predmet ? (predmet.Name || predmet.Abbrev || "").trim() : "",
-        ucebna: ucebna ? (ucebna.Abbrev || ucebna.Name || "").trim() : "",
+        ucebna,
+        barvaUcebny: ucebna in poradiUceben ? poradiUceben[ucebna] : null,
         ucitel: ucitel ? (ucitel.Name || ucitel.Abbrev || "").trim() : "",
         tema: (a.Theme || "").trim(),
         zmena,
@@ -166,12 +182,6 @@ function shrnutiDne(den, ted) {
   return `${probehnou.length} ${tvarHodin(probehnou.length)} · ${casText(probehnou[0].zacatek)}–${konec}`
 }
 
-// Stejný předmět má vždycky stejnou barvu, bez ohledu na týden nebo pořadí v rozvrhu
-function barvaPredmetu(zkratka, pocetBarev) {
-  let hash = 5381
-  for (const znak of String(zkratka || "")) hash = (hash * 33 + znak.charCodeAt(0)) >>> 0
-  return hash % pocetBarev
-}
 
 function popisDne(datum, ted) {
   const d = casNaDatum(datum, "0:00")
@@ -325,7 +335,8 @@ async function nactiStav(ted) {
 
 const MOTIVY = { auto: "Automaticky", tmavy: "Tmavý", svetly: "Světlý" }
 
-// Barvy předmětů: [světlý režim, tmavý režim]. Oranžová chybí schválně, patří změnám v rozvrhu.
+// Barvy učeben v pořadí podle četnosti: [světlý režim, tmavý režim].
+// Oranžová chybí schválně, patří změnám v rozvrhu.
 const PALETA = [
   ["#0A66D8", "#64B5FF"],
   ["#1E7F45", "#5BD68A"],
@@ -354,7 +365,8 @@ function barvy(motiv = "auto") {
     zvyrazneni: vyber("#000000", "#FFFFFF", 0.05, 0.08),
     teckaNeaktivni: vyber("#D1D1D6", "#48484A"),
     stitekZmena: stitek("#B35C00", "#FFB340"),
-    stitekPredmetu: zkratka => stitek(...PALETA[barvaPredmetu(zkratka, PALETA.length)]),
+    stitekUcebny: poradi =>
+      poradi == null ? stitek("#6E6E73", "#98989F") : stitek(...PALETA[poradi % PALETA.length]),
   }
 }
 
@@ -419,14 +431,15 @@ function pridejHodinu(sloupec, h, ted, B) {
 
   const radek = blok.addStack()
   radek.centerAlignContent()
-  const barvaPredmetu = h.zrusena ? B.tlumeny : h.zmena ? B.zmena : B.text
-  pridejText(radek, h.predmet || "—", Font.boldSystemFont(15), barvaPredmetu, 0.7)
+  const barvaNazvu = h.zrusena ? B.tlumeny : h.zmena ? B.zmena : B.text
+  pridejText(radek, h.predmet || "—", Font.boldSystemFont(15), barvaNazvu, 0.7)
   radek.addSpacer()
 
   const stitek = radek.addStack()
   stitek.setPadding(1, 6, 1, 6)
   stitek.cornerRadius = 5
-  const barva = h.zmena ? B.stitekZmena : B.stitekPredmetu(h.predmet)
+  // Učebna drží svou barvu i při suplování, změnu hlásí oranžový předmět a „supl.“
+  const barva = h.zrusena ? B.stitekZmena : B.stitekUcebny(h.barvaUcebny)
   stitek.backgroundColor = barva.pozadi
   const fontStitku = h.zrusena ? Font.semiboldSystemFont(11) : Font.boldSystemFont(13)
   pridejText(stitek, h.zrusena ? "odpadá" : h.ucebna || "—", fontStitku, barva.text, 0.7)
@@ -530,7 +543,7 @@ async function ukazRozvrh(ted) {
     kde.widthWeight = 18
     kde.rightAligned()
     kde.titleFont = Font.boldSystemFont(17)
-    kde.titleColor = h.zrusena || h.zmena ? B.zmena : B.akcent
+    kde.titleColor = h.zrusena ? B.zmena : B.stitekUcebny(h.barvaUcebny).text
     tabulka.addRow(r)
   }
   await tabulka.present()
@@ -594,12 +607,33 @@ async function menu(ted) {
   a.addCancelAction("Zavřít")
   const volba = await a.present()
   if (volba === 0) await ukazRozvrh(ted)
-  if (volba === 1) await vytvorWidget(await nactiStav(ted), ted).presentMedium()
+  if (volba === 1) await nahledWidgetu(ted)
   if (volba === 2) await vyberMotiv()
   if (volba === 3) {
     odhlasit()
     await prihlasovaciDialog()
   }
+}
+
+// Náhled ve Scriptable posouvat nejde (posouvá se až zásobník na ploše), proto výběr stránky
+async function nahledWidgetu(ted) {
+  const stav = await nactiStav(ted)
+  let cislo = 1
+  if (stav.den) {
+    const { sloupcu, naSloupec } = rozlozeni("medium")
+    const { stranek } = stranka(stav.den, ted, sloupcu * naSloupec)
+    if (stranek > 1) {
+      const a = new Alert()
+      a.title = "Kterou stránku ukázat?"
+      a.message = "Na ploše mezi nimi listuješ v zásobníku widgetů, návod je v README."
+      for (let i = 1; i <= stranek; i++) a.addAction(`Stránka ${i}`)
+      a.addCancelAction("Zrušit")
+      const volba = await a.present()
+      if (volba === -1) return
+      cislo = volba + 1
+    }
+  }
+  await vytvorWidget(stav, ted, cislo).presentMedium()
 }
 
 async function vyberMotiv() {
@@ -650,7 +684,6 @@ if (typeof module !== "undefined") {
     tvarHodin,
     konecDne,
     shrnutiDne,
-    barvaPredmetu,
     popisDne,
     dalsiObnova,
   }
