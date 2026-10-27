@@ -3,25 +3,27 @@
 Rozvrh z Bakalářů přímo na ploše iPhonu. Widget ukazuje čas hodiny, předmět a učebnu, takže kvůli rozvrhu nemusíš otvírat appku.
 
 ```
-┌──────────────────────────────────────────────┐
-│ Dnes · úterý 27. 10.                    9:58 │
-│ 10:00 – 10:45          │ 12:40 – 13:25       │
-│ ANJ              104   │ WEB            PC3  │
-│ 10:55 – 11:40          │ 13:35 – 14:20       │
-│ —             odpadá   │ TEV            TĚL  │
-│ 11:45 – 12:30          │ +1 další ›          │
-│ MAT              212   │                     │
-└──────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────┐
+│ Dnes · pondělí 2. 11.  ještě 8 hodin · do 16:45 ●○│
+│ 8:00 – 8:45 · zbývá 12:03 │ 11:45 – 12:30 · supl. │
+│ EKO                [234]  │ ANJ            [236]  │
+│ 8:55 – 9:40               │ 12:40 – 13:25         │
+│ MAT                [234]  │ VIK            [238]  │
+│ 9:50 – 10:35              │ 13:30 – 14:15         │
+│ CJL                [234]  │ VIK            [238]  │
+└───────────────────────────────────────────────────┘
 ```
 
 ## Co umí
 
-- **Dnešní rozvrh od aktuální hodiny dál.** Odučené hodiny z widgetu zmizí, takže se zbytek dne vejde. Probíhající hodina je zvýrazněná.
+- **Dnešní rozvrh od aktuální hodiny dál.** Odučené hodiny z widgetu zmizí. Probíhající hodina je zvýrazněná a ukazuje živý odpočet do konce.
+- **Posouvání po stránkách.** Když se den nevejde, dáš na plochu dva widgety do zásobníku a listuješ mezi nimi prstem (návod níž). Tečky v hlavičce ukazují, na které stránce jsi.
+- **Učebna v barevném štítku**, každý předmět má svou stálou barvu.
 - **Po vyučování ukáže další školní den.** Večer zítřek, v pátek pondělí, přes prázdniny první den, kdy se zase učí.
 - **Suplování a změny** jsou oranžově, hodina, která odpadá, má místo učebny „odpadá".
 - **Klepnutím na widget** se otevře celý den včetně učitele, tématu a popisu změny.
 - **Funguje i bez internetu.** Ukáže poslední stažený rozvrh a v hlavičce napíše „offline" s časem, kdy se data stáhla.
-- Světlý i tmavý režim, střední widget (počítá i s malým a velkým).
+- **Světlý, tmavý nebo automatický vzhled**, přepíná se v menu skriptu. Střední widget, počítá i s malým a velkým.
 
 ## Instalace
 
@@ -36,7 +38,18 @@ Potřebuješ iPhone s iOS 16 nebo novějším a přihlašovací údaje do Bakal�
 5. Na ploše podrž prst na volném místě → **+** vlevo nahoře → najdi **Scriptable** → vyber **střední** widget → **Přidat**.
 6. Podrž prst na widgetu → **Upravit widget** → u **Script** vyber `BakalariRozvrh` a u **When Interacting** nech **Run Script**.
 
-Hotovo. Kdybys chtěl změnit školu nebo se odhlásit, spusť skript ve Scriptable a v menu vyber **Odhlásit / změnit školu**.
+Hotovo. Kdybys chtěl změnit vzhled, školu nebo se odhlásit, spusť skript ve Scriptable a vyber to v menu.
+
+### Posouvání: druhá stránka v zásobníku
+
+Widgety na iPhonu se posouvat nedají, ale dají se skládat na sebe a listovat mezi nimi prstem.
+
+1. Přidej na plochu druhý **střední** widget Scriptable se skriptem `BakalariRozvrh`.
+2. U něj v **Upravit widget** vyplň **Parameter** číslem `2`. První widget nech prázdný (nebo `1`).
+3. Podrž prst na druhém widgetu a přetáhni ho přímo na první. Vznikne zásobník.
+4. Mezi stránkami listuješ tahem prstem nahoru a dolů. Když iPhone stránky přepíná sám, vypni v úpravě zásobníku **Inteligentní otáčení**.
+
+Při dlouhém dni přidej klidně i třetí stránku s parametrem `3`.
 
 ## Bezpečnost
 

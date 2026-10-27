@@ -71,22 +71,54 @@ test("najdiDen vrátí null, když dlouho žádná výuka není", async () => {
   assert.equal(await R.najdiDen(kdy("2026-12-21", "10:00"), nactiTyden), null)
 })
 
-test("oknoOd u dneška začíná probíhající hodinou", () => {
-  const okno = R.oknoOd(utery, kdy("2026-10-27", "10:10"), 6)
-  assert.deepEqual(okno.hodiny.map(h => h.cislo), ["3", "5", "6", "7", "8"])
-  assert.equal(okno.dalsi, 0)
-  assert.ok(R.probiha(okno.hodiny[0], kdy("2026-10-27", "10:10")))
+const cisla = st => st.hodiny.map(h => h.cislo)
+
+test("stranka u dneška začíná probíhající hodinou", () => {
+  const st = R.stranka(utery, kdy("2026-10-27", "10:10"), 6)
+  assert.deepEqual(cisla(st), ["3", "5", "6", "7", "8"])
+  assert.equal(st.stranek, 1)
+  assert.equal(st.posledni, true)
+  assert.ok(R.probiha(st.hodiny[0], kdy("2026-10-27", "10:10")))
 })
 
-test("oknoOd: co se nevejde, nahradí „+N další“ na posledním místě", () => {
-  const okno = R.oknoOd(utery, kdy("2026-10-27", "7:00"), 6)
-  assert.deepEqual(okno.hodiny.map(h => h.cislo), ["1", "2", "3", "5", "6"])
-  assert.equal(okno.dalsi, 2)
+test("stranka: co se nevejde na první stránku, je na druhé", () => {
+  const ted = kdy("2026-10-27", "7:00")
+  const prvni = R.stranka(utery, ted, 6, 1)
+  assert.deepEqual(cisla(prvni), ["1", "2", "3", "5", "6", "7"])
+  assert.equal(prvni.stranek, 2)
+  assert.equal(prvni.posledni, false)
+  const druha = R.stranka(utery, ted, 6, 2)
+  assert.deepEqual(cisla(druha), ["8"])
+  assert.equal(druha.posledni, true)
 })
 
-test("oknoOd u jiného dne než dneška ukazuje den od začátku", () => {
-  const okno = R.oknoOd(utery, kdy("2026-10-26", "18:00"), 6)
-  assert.equal(okno.hodiny[0].cislo, "1")
+test("stranka za koncem rozvrhu je prázdná a poslední", () => {
+  const st = R.stranka(utery, kdy("2026-10-27", "7:00"), 6, 3)
+  assert.deepEqual(cisla(st), [])
+  assert.equal(st.posledni, true)
+})
+
+test("stranka u jiného dne než dneška ukazuje den od začátku", () => {
+  assert.equal(R.stranka(utery, kdy("2026-10-26", "18:00"), 6).hodiny[0].cislo, "1")
+})
+
+test("tvarHodin skloňuje podle češtiny", () => {
+  assert.deepEqual([0, 1, 2, 4, 5, 9].map(R.tvarHodin), ["hodin", "hodina", "hodiny", "hodiny", "hodin", "hodin"])
+})
+
+test("shrnutiDne počítá jen hodiny, které neodpadají", () => {
+  assert.equal(R.shrnutiDne(utery, kdy("2026-10-27", "10:10")), "ještě 4 hodiny · do 15:10")
+  assert.equal(R.shrnutiDne(utery, kdy("2026-10-26", "18:00")), "6 hodin · 8:00–15:10")
+  assert.deepEqual(R.konecDne(utery), kdy("2026-10-27", "15:10"))
+})
+
+test("barvaPredmetu je stálá a v rozsahu palety", () => {
+  const zkratky = ["MAT", "ANJ", "PVA", "WEB", "TEV", "CJL", "EKO", "SPJ", "VIK"]
+  const barvy = zkratky.map(z => R.barvaPredmetu(z, 8))
+  assert.deepEqual(barvy, zkratky.map(z => R.barvaPredmetu(z, 8)))
+  assert.ok(barvy.every(b => Number.isInteger(b) && b >= 0 && b < 8))
+  assert.ok(new Set(barvy).size > 3, "předměty nemají všechny stejnou barvu")
+  assert.equal(R.barvaPredmetu("", 8), R.barvaPredmetu(null, 8))
 })
 
 test("popisDne rozliší dnes, zítra a další dny", () => {

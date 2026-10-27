@@ -6,7 +6,7 @@
 // Ukazuje dnešní rozvrh (po vyučování zítřejší) s časem, předmětem a učebnou.
 // Licence MIT. Přihlašovací údaje zůstávají jen v Klíčence (Keychain) tohoto iPhonu.
 
-const VERZE = "1.0.1"
+const VERZE = "1.1.0"
 const KLIC = "bakalari-rozvrh."
 const CACHE = "bakalari-rozvrh-cache.json"
 const DNY = ["neděle", "pondělí", "úterý", "středa", "čtvrtek", "pátek", "sobota"]
@@ -128,16 +128,50 @@ async function najdiDen(ted, nactiTyden, tydnu = 4) {
   return null
 }
 
-// Hodiny, které se vejdou do widgetu. U dneška začíná probíhající nebo příští hodinou.
-// Když se nevejdou všechny, poslední místo zabere „+N další“.
-function oknoOd(den, ted, max) {
+// Hodiny jedné stránky widgetu. U dneška začíná probíhající nebo příští hodinou.
+// Stránky se listují v zásobníku widgetů (Smart Stack), číslo stránky je parametr widgetu.
+function stranka(den, ted, naStranku, cislo = 1) {
   let hodiny = den.hodiny
   if (den.datum === datumKlic(ted)) hodiny = hodiny.filter(h => h.konec > ted)
-  if (hodiny.length <= max) return { hodiny, dalsi: 0 }
-  return { hodiny: hodiny.slice(0, max - 1), dalsi: hodiny.length - (max - 1) }
+  const od = (cislo - 1) * naStranku
+  return {
+    hodiny: hodiny.slice(od, od + naStranku),
+    stranek: Math.max(1, Math.ceil(hodiny.length / naStranku)),
+    posledni: od + naStranku >= hodiny.length,
+  }
 }
 
 const probiha = (h, ted) => h.zacatek <= ted && ted < h.konec
+
+function tvarHodin(n) {
+  if (n === 1) return "hodina"
+  return n >= 2 && n <= 4 ? "hodiny" : "hodin"
+}
+
+// Konec poslední hodiny, která neodpadá
+function konecDne(den) {
+  const probehnou = den.hodiny.filter(h => !h.zrusena)
+  return probehnou.length ? probehnou[probehnou.length - 1].konec : null
+}
+
+// Šedý text v hlavičce: „ještě 8 hodin · do 16:45“ nebo „9 hodin · 7:10–16:45“
+function shrnutiDne(den, ted) {
+  const probehnou = den.hodiny.filter(h => !h.zrusena)
+  if (!probehnou.length) return ""
+  const konec = casText(konecDne(den))
+  if (den.datum === datumKlic(ted)) {
+    const zbyva = probehnou.filter(h => h.konec > ted).length
+    return `ještě ${zbyva} ${tvarHodin(zbyva)} · do ${konec}`
+  }
+  return `${probehnou.length} ${tvarHodin(probehnou.length)} · ${casText(probehnou[0].zacatek)}–${konec}`
+}
+
+// Stejný předmět má vždycky stejnou barvu, bez ohledu na týden nebo pořadí v rozvrhu
+function barvaPredmetu(zkratka, pocetBarev) {
+  let hash = 5381
+  for (const znak of String(zkratka || "")) hash = (hash * 33 + znak.charCodeAt(0)) >>> 0
+  return hash % pocetBarev
+}
 
 function popisDne(datum, ted) {
   const d = casNaDatum(datum, "0:00")
@@ -289,15 +323,62 @@ async function nactiStav(ted) {
 // Scriptable: vzhled
 // ---------------------------------------------------------------------------
 
-function barvy() {
-  const dyn = (svetla, tmava) => Color.dynamic(new Color(svetla), new Color(tmava))
+const MOTIVY = { auto: "Automaticky", tmavy: "Tmavý", svetly: "Světlý" }
+
+// Barvy předmětů: [světlý režim, tmavý režim]. Oranžová chybí schválně, patří změnám v rozvrhu.
+const PALETA = [
+  ["#0A66D8", "#64B5FF"],
+  ["#1E7F45", "#5BD68A"],
+  ["#7B3FC4", "#C792FF"],
+  ["#C2255C", "#FF7AA8"],
+  ["#0B7A8C", "#4FD1E0"],
+  ["#8A5A00", "#FFD54F"],
+  ["#4A4FD1", "#8C9EFF"],
+  ["#0F7A5C", "#7EE0C3"],
+]
+
+// "auto" se řídí tmavým režimem iPhonu, "tmavy" a "svetly" ho přebijí
+function barvy(motiv = "auto") {
+  const vyber = (svetla, tmava, alfaSvetla = 1, alfaTmava = alfaSvetla) => {
+    if (motiv === "svetly") return new Color(svetla, alfaSvetla)
+    if (motiv === "tmavy") return new Color(tmava, alfaTmava)
+    return Color.dynamic(new Color(svetla, alfaSvetla), new Color(tmava, alfaTmava))
+  }
+  const stitek = (svetla, tmava) => ({ text: vyber(svetla, tmava), pozadi: vyber(svetla, tmava, 0.12, 0.18) })
   return {
-    pozadi: dyn("#FFFFFF", "#1C1C1E"),
-    text: dyn("#111114", "#F2F2F7"),
-    tlumeny: dyn("#6E6E73", "#98989F"),
-    akcent: dyn("#0A66D8", "#4EA1FF"),
-    zmena: dyn("#C25E00", "#FF9F0A"),
-    zvyrazneni: Color.dynamic(new Color("#0A66D8", 0.1), new Color("#4EA1FF", 0.2)),
+    pozadi: vyber("#FFFFFF", "#1C1C1E"),
+    text: vyber("#111114", "#F2F2F7"),
+    tlumeny: vyber("#6E6E73", "#98989F"),
+    akcent: vyber("#0A66D8", "#64B5FF"),
+    zmena: vyber("#B35C00", "#FFB340"),
+    zvyrazneni: vyber("#000000", "#FFFFFF", 0.05, 0.08),
+    teckaNeaktivni: vyber("#D1D1D6", "#48484A"),
+    stitekZmena: stitek("#B35C00", "#FFB340"),
+    stitekPredmetu: zkratka => stitek(...PALETA[barvaPredmetu(zkratka, PALETA.length)]),
+  }
+}
+
+const zvolenyMotiv = () => (MOTIVY[Ulozene.get("motiv")] ? Ulozene.get("motiv") : "auto")
+
+function pridejText(kam, text, font, barva, zmenseni) {
+  const t = kam.addText(text)
+  t.font = font
+  t.textColor = barva
+  t.lineLimit = 1
+  if (zmenseni) t.minimumScaleFactor = zmenseni
+  return t
+}
+
+// Tečky v hlavičce ukazují, na které stránce zásobníku widgetů jsi
+function pridejTecky(kam, pocet, aktivni, B) {
+  const tecky = kam.addStack()
+  tecky.centerAlignContent()
+  tecky.spacing = 4
+  for (let i = 1; i <= pocet; i++) {
+    const t = tecky.addStack()
+    t.size = new Size(5, 5)
+    t.cornerRadius = 2.5
+    t.backgroundColor = i === aktivni ? B.text : B.teckaNeaktivni
   }
 }
 
@@ -314,36 +395,45 @@ function pridejHodinu(sloupec, h, ted, B) {
   const blok = sloupec.addStack()
   blok.layoutVertically()
   blok.setPadding(2, 6, 2, 6)
-  blok.cornerRadius = 6
-  if (probiha(h, ted)) blok.backgroundColor = B.zvyrazneni
+  blok.cornerRadius = 8
+  const prave = probiha(h, ted)
+  if (prave) blok.backgroundColor = B.zvyrazneni
 
   const horni = blok.addStack()
-  const cas = horni.addText(h.cas)
-  cas.font = Font.regularMonospacedSystemFont(10)
-  cas.textColor = B.tlumeny
-  cas.lineLimit = 1
+  horni.centerAlignContent()
+  pridejText(horni, h.cas, Font.regularMonospacedSystemFont(10), B.tlumeny)
+  if (prave) {
+    pridejText(horni, " · zbývá ", Font.semiboldSystemFont(10), B.akcent)
+    // Odpočet běží živě, nečeká na to, až iOS widget obnoví
+    const odpocet = horni.addDate(h.konec)
+    odpocet.applyTimerStyle()
+    odpocet.font = Font.semiboldMonospacedSystemFont(10)
+    odpocet.textColor = B.akcent
+    odpocet.lineLimit = 1
+    odpocet.leftAlignText()
+  } else if (h.zmena && !h.zrusena) {
+    const druh = /Subst/i.test(h.zmena.typ) ? " · supl." : " · změna"
+    pridejText(horni, druh, Font.semiboldSystemFont(10), B.zmena)
+  }
   horni.addSpacer()
 
   const radek = blok.addStack()
   radek.centerAlignContent()
-  const barva = h.zrusena ? B.tlumeny : h.zmena ? B.zmena : B.text
-
-  const predmet = radek.addText(h.predmet || "—")
-  predmet.font = Font.semiboldSystemFont(15)
-  predmet.textColor = barva
-  predmet.lineLimit = 1
-  predmet.minimumScaleFactor = 0.7
+  const barvaPredmetu = h.zrusena ? B.tlumeny : h.zmena ? B.zmena : B.text
+  pridejText(radek, h.predmet || "—", Font.boldSystemFont(15), barvaPredmetu, 0.7)
   radek.addSpacer()
 
-  const ucebna = radek.addText(h.zrusena ? "odpadá" : h.ucebna)
-  ucebna.font = h.zrusena ? Font.mediumSystemFont(11) : Font.boldSystemFont(15)
-  ucebna.textColor = h.zrusena ? B.zmena : h.zmena ? B.zmena : B.akcent
-  ucebna.lineLimit = 1
-  ucebna.minimumScaleFactor = 0.7
+  const stitek = radek.addStack()
+  stitek.setPadding(1, 6, 1, 6)
+  stitek.cornerRadius = 5
+  const barva = h.zmena ? B.stitekZmena : B.stitekPredmetu(h.predmet)
+  stitek.backgroundColor = barva.pozadi
+  const fontStitku = h.zrusena ? Font.semiboldSystemFont(11) : Font.boldSystemFont(13)
+  pridejText(stitek, h.zrusena ? "odpadá" : h.ucebna || "—", fontStitku, barva.text, 0.7)
 }
 
-function vytvorWidget(stav, ted) {
-  const B = barvy()
+function vytvorWidget(stav, ted, cisloStranky = 1) {
+  const B = barvy(zvolenyMotiv())
   const rodina = config.widgetFamily || "medium"
   const w = new ListWidget()
   w.backgroundColor = B.pozadi
@@ -359,25 +449,31 @@ function vytvorWidget(stav, ted) {
   }
 
   const { den, info } = stav
+  const { sloupcu, naSloupec } = rozlozeni(rodina)
+  const naStranku = sloupcu * naSloupec
+  const st = stranka(den, ted, naStranku, cisloStranky)
+
   const hlava = w.addStack()
   hlava.centerAlignContent()
-  const nadpis = hlava.addText(popisDne(den.datum, ted))
-  nadpis.font = Font.semiboldSystemFont(13)
-  nadpis.textColor = B.akcent
-  nadpis.lineLimit = 1
+  pridejText(hlava, popisDne(den.datum, ted), Font.semiboldSystemFont(13), B.text)
+  hlava.addSpacer(6)
+  const shrnuti = info.problem ? `${info.problem} · ${casText(info.aktualizace)}` : shrnutiDne(den, ted)
+  pridejText(hlava, shrnuti, Font.regularSystemFont(11), info.problem ? B.zmena : B.tlumeny, 0.8)
   hlava.addSpacer()
-  if (info.aktualizace) {
-    const kdy = casText(info.aktualizace)
-    const t = hlava.addText(info.problem ? `${info.problem} · ${kdy}` : kdy)
-    t.font = Font.regularSystemFont(10)
-    t.textColor = info.problem ? B.zmena : B.tlumeny
-  }
+  const stranek = Math.max(st.stranek, cisloStranky)
+  if (stranek > 1) pridejTecky(hlava, stranek, cisloStranky, B)
   w.addSpacer(6)
 
-  const { sloupcu, naSloupec } = rozlozeni(rodina)
-  const okno = oknoOd(den, ted, sloupcu * naSloupec)
-  // Do tří hodin stačí jeden široký sloupec
-  const pocetSloupcu = okno.hodiny.length + (okno.dalsi ? 1 : 0) > naSloupec ? sloupcu : 1
+  // Poslední stránka s volným místem dostane řádek o konci vyučování
+  const konec = casText(konecDne(den))
+  const zaver =
+    st.posledni && st.hodiny.length < naStranku
+      ? den.datum === datumKlic(ted)
+        ? `To je pro dnešek vše. Konec v ${konec}.`
+        : `Konec v ${konec}.`
+      : null
+  // Do tří položek stačí jeden široký sloupec
+  const pocetSloupcu = st.hodiny.length + (zaver ? 1 : 0) > naSloupec ? sloupcu : 1
 
   const radek = w.addStack()
   radek.topAlignContent()
@@ -389,16 +485,13 @@ function vytvorWidget(stav, ted) {
     s.spacing = 3
     sloupce.push(s)
   }
-  okno.hodiny.forEach((h, i) => {
-    pridejHodinu(sloupce[Math.min(Math.floor(i / naSloupec), pocetSloupcu - 1)], h, ted, B)
-  })
-  if (okno.dalsi) {
-    const dalsi = sloupce[pocetSloupcu - 1].addStack()
-    dalsi.setPadding(4, 6, 0, 6)
-    const t = dalsi.addText(`+${okno.dalsi} další ›`)
-    t.font = Font.mediumSystemFont(11)
-    t.textColor = B.tlumeny
-    dalsi.addSpacer()
+  const sloupecPro = i => sloupce[Math.min(Math.floor(i / naSloupec), pocetSloupcu - 1)]
+  st.hodiny.forEach((h, i) => pridejHodinu(sloupecPro(i), h, ted, B))
+  if (zaver) {
+    const z = sloupecPro(st.hodiny.length).addStack()
+    z.setPadding(6, 6, 2, 6)
+    pridejText(z, zaver, Font.regularSystemFont(11), B.tlumeny, 0.8)
+    z.addSpacer()
   }
   w.addSpacer()
   w.refreshAfterDate = dalsiObnova(den, ted)
@@ -409,7 +502,8 @@ async function ukazRozvrh(ted) {
   const stav = await nactiStav(ted)
   if (stav.chyba) return upozorneni("Rozvrh", stav.chyba)
   const { den } = stav
-  const B = barvy()
+  // Tabulka má vždycky barvy systému, s vynuceným motivem by byl text na pozadí neviditelný
+  const B = barvy("auto")
   const tabulka = new UITable()
   tabulka.showSeparators = true
 
@@ -495,21 +589,36 @@ async function menu(ted) {
   a.message = `Přihlášen: ${Ulozene.get("jmeno")}\n${Ulozene.get("url")}\nVerze ${VERZE}`
   a.addAction("Zobrazit rozvrh")
   a.addAction("Náhled widgetu")
+  a.addAction(`Vzhled: ${MOTIVY[zvolenyMotiv()]}`)
   a.addDestructiveAction("Odhlásit / změnit školu")
   a.addCancelAction("Zavřít")
   const volba = await a.present()
   if (volba === 0) await ukazRozvrh(ted)
   if (volba === 1) await vytvorWidget(await nactiStav(ted), ted).presentMedium()
-  if (volba === 2) {
+  if (volba === 2) await vyberMotiv()
+  if (volba === 3) {
     odhlasit()
     await prihlasovaciDialog()
   }
 }
 
+async function vyberMotiv() {
+  const a = new Alert()
+  a.title = "Vzhled widgetu"
+  a.message = "Automaticky se řídí tmavým režimem iPhonu. Na ploše se změna projeví při další obnově widgetu."
+  const klice = Object.keys(MOTIVY)
+  for (const k of klice) a.addAction(MOTIVY[k] + (k === zvolenyMotiv() ? " ✓" : ""))
+  a.addCancelAction("Zrušit")
+  const volba = await a.present()
+  if (volba >= 0) Ulozene.set("motiv", klice[volba])
+}
+
 async function main() {
   const ted = new Date()
   if (config.runsInWidget) {
-    Script.setWidget(vytvorWidget(await nactiStav(ted), ted))
+    // Parametr widgetu = číslo stránky (1, 2…) pro listování v zásobníku widgetů
+    const cislo = Math.max(1, parseInt(args.widgetParameter, 10) || 1)
+    Script.setWidget(vytvorWidget(await nactiStav(ted), ted, cislo))
     return
   }
   if (!Ulozene.get("url") && !(await prihlasovaciDialog())) return
@@ -536,8 +645,12 @@ if (typeof module !== "undefined") {
     sestavDny,
     vyberDen,
     najdiDen,
-    oknoOd,
+    stranka,
     probiha,
+    tvarHodin,
+    konecDne,
+    shrnutiDne,
+    barvaPredmetu,
     popisDne,
     dalsiObnova,
   }

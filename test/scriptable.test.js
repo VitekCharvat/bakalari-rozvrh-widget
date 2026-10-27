@@ -5,8 +5,9 @@ const assert = require("node:assert/strict")
 const path = require("node:path")
 const fixture = jmeno => require(path.join(__dirname, "fixtures", jmeno))
 
-function spustSkript({ ted, keychain = {}, soubory = {}, odpovedi, online = true }) {
+function spustSkript({ ted, keychain = {}, soubory = {}, odpovedi, online = true, parametr = null }) {
   const texty = []
+  const odpocty = []
   const pozadavky = []
   class Prvek {
     constructor() {
@@ -20,6 +21,10 @@ function spustSkript({ ted, keychain = {}, soubory = {}, odpovedi, online = true
     addText(t) {
       texty.push(t)
       return {}
+    }
+    addDate(d) {
+      odpocty.push(d)
+      return { applyTimerStyle() {}, leftAlignText() {} }
     }
     addSpacer() {}
     layoutVertically() {}
@@ -66,7 +71,7 @@ function spustSkript({ ted, keychain = {}, soubory = {}, odpovedi, online = true
     Size: class {},
     URLScheme: { forRunningScript: () => "scriptable:///run/BakalariRozvrh" },
     config: { runsInWidget: true, widgetFamily: "medium" },
-    args: { queryParameters: {} },
+    args: { queryParameters: {}, widgetParameter: parametr },
   }
   const RealDate = Date
   class FalesneDatum extends RealDate {
@@ -85,7 +90,7 @@ function spustSkript({ ted, keychain = {}, soubory = {}, odpovedi, online = true
       complete: () => {
         Object.keys(g).forEach(k => delete global[k])
         global.Date = RealDate
-        resolve({ widget, texty, pozadavky, keychain, soubory })
+        resolve({ widget, texty, odpocty, pozadavky, keychain, soubory })
       },
     }
     Object.assign(global, g)
@@ -126,8 +131,33 @@ test("widget v úterý dopoledne ukáže zbytek dne s časy a učebnami", async 
   assert.ok(v.texty.includes("104"))
   assert.ok(v.texty.includes("odpadá"))
   assert.ok(!v.texty.includes("MAT"), "odučená hodina se neukazuje")
+  assert.equal(v.texty[1], "ještě 4 hodiny · do 15:10")
+  assert.ok(v.texty.includes(" · zbývá "), "probíhající hodina má odpočet")
+  assert.deepEqual(v.odpocty.map(d => d.getTime()), [new Date(2026, 9, 27, 10, 45).getTime()])
+  assert.ok(v.texty.includes("To je pro dnešek vše. Konec v 15:10."))
   assert.equal(v.keychain["bakalari-rozvrh.refresh"], "R2", "refresh token se obnovil")
   assert.ok(v.pozadavky[0].endsWith("/api/login"))
+})
+
+test("parametr widgetu 2 ukáže druhou stránku dne", async () => {
+  const ted = new Date(2026, 9, 27, 7, 0)
+  const prvni = await spustSkript({ ted, keychain: prihlasen(), odpovedi: api })
+  assert.ok(prvni.texty.includes("MAT"))
+  assert.ok(prvni.texty.includes(" · supl."), "suplování je označené")
+  assert.ok(!prvni.texty.includes("14:25 – 15:10"))
+  const druha = await spustSkript({ ted, keychain: prihlasen(), odpovedi: api, parametr: "2" })
+  assert.equal(druha.texty[0], "Dnes · úterý 27. 10.")
+  assert.ok(druha.texty.includes("14:25 – 15:10"))
+  assert.ok(!druha.texty.includes("MAT"))
+  assert.ok(druha.texty.includes("To je pro dnešek vše. Konec v 15:10."))
+})
+
+test("vynucený světlý i tmavý motiv widget vykreslí", async () => {
+  for (const motiv of ["svetly", "tmavy", "nesmysl"]) {
+    const keychain = { ...prihlasen(), "bakalari-rozvrh.motiv": motiv }
+    const v = await spustSkript({ ted: new Date(2026, 9, 27, 10, 10), keychain, odpovedi: api })
+    assert.equal(v.texty[0], "Dnes · úterý 27. 10.", motiv)
+  }
 })
 
 test("v pátek večer widget ukáže pondělí po prázdninách", async () => {
