@@ -5,6 +5,7 @@
 // Bakaláři rozvrh – widget pro Scriptable (iOS)
 // Ukazuje dnešní rozvrh (po vyučování zítřejší) s časem, předmětem a učebnou.
 // Licence MIT. Přihlašovací údaje zůstávají jen v Klíčence (Keychain) tohoto iPhonu.
+// Nová verze a návod: https://github.com/VitekCharvat/bakalari-rozvrh-widget
 
 const VERZE = "1.1.1"
 const KLIC = "bakalari-rozvrh."

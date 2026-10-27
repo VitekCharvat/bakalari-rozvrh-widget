@@ -7,6 +7,7 @@
 // Bakalari rozvrh \u2013 widget pro Scriptable (iOS)
 // Ukazuje dnesni rozvrh (po vyucovani zitrejsi) s casem, predmetem a ucebnou.
 // Licence MIT. Prihlasovaci udaje zustavaji jen v Klicence (Keychain) tohoto iPhonu.
+// Nova verze a navod: https://github.com/VitekCharvat/bakalari-rozvrh-widget
 
 const VERZE = "1.1.1"
 const KLIC = "bakalari-rozvrh."
