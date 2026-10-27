@@ -1,0 +1,10 @@
+{
+  "name": "bakalari-rozvrh-widget",
+  "version": "1.0.0",
+  "description": "Widget s rozvrhem z Bakalářů na plochu iPhonu (Scriptable)",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

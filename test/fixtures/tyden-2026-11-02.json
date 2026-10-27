@@ -1,0 +1,31 @@
+{
+  "Hours": [
+    { "Id": 2, "Caption": "1", "BeginTime": "8:00", "EndTime": "8:45" },
+    { "Id": 3, "Caption": "2", "BeginTime": "8:55", "EndTime": "9:40" },
+    { "Id": 4, "Caption": "3", "BeginTime": "10:00", "EndTime": "10:45" }
+  ],
+  "Days": [
+    {
+      "DayOfWeek": 1,
+      "Date": "2026-11-02T00:00:00+01:00",
+      "DayDescription": "",
+      "DayType": "WorkDay",
+      "Atoms": [
+        { "HourId": 2, "SubjectId": "5", "TeacherId": "UC", "RoomId": "R104", "Theme": "", "Change": null },
+        { "HourId": 3, "SubjectId": "3", "TeacherId": "UA", "RoomId": "R212", "Theme": "", "Change": null }
+      ]
+    }
+  ],
+  "Subjects": [
+    { "Id": "3", "Abbrev": "MAT", "Name": "Matematika" },
+    { "Id": "5", "Abbrev": "ANJ", "Name": "Anglický jazyk" }
+  ],
+  "Teachers": [
+    { "Id": "UA", "Abbrev": "UcA", "Name": "Učitel A" },
+    { "Id": "UC", "Abbrev": "UcC", "Name": "Učitel C" }
+  ],
+  "Rooms": [
+    { "Id": "R212", "Abbrev": "212", "Name": "Učebna 212" },
+    { "Id": "R104", "Abbrev": "104", "Name": "Učebna 104" }
+  ]
+}

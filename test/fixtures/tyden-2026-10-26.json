@@ -1,0 +1,89 @@
+{
+  "Hours": [
+    { "Id": 1, "Caption": "0", "BeginTime": "7:10", "EndTime": "7:55" },
+    { "Id": 2, "Caption": "1", "BeginTime": "8:00", "EndTime": "8:45" },
+    { "Id": 3, "Caption": "2", "BeginTime": "8:55", "EndTime": "9:40" },
+    { "Id": 4, "Caption": "3", "BeginTime": "10:00", "EndTime": "10:45" },
+    { "Id": 5, "Caption": "4", "BeginTime": "10:55", "EndTime": "11:40" },
+    { "Id": 6, "Caption": "5", "BeginTime": "11:45", "EndTime": "12:30" },
+    { "Id": 7, "Caption": "6", "BeginTime": "12:40", "EndTime": "13:25" },
+    { "Id": 8, "Caption": "7", "BeginTime": "13:35", "EndTime": "14:20" },
+    { "Id": 9, "Caption": "8", "BeginTime": "14:25", "EndTime": "15:10" }
+  ],
+  "Days": [
+    {
+      "DayOfWeek": 1,
+      "Date": "2026-10-26T00:00:00+01:00",
+      "DayDescription": "",
+      "DayType": "WorkDay",
+      "Atoms": [
+        { "HourId": 2, "SubjectId": " 3", "TeacherId": "UA", "RoomId": "R212", "Theme": "Lineární rovnice", "Change": null },
+        { "HourId": 3, "SubjectId": "11", "TeacherId": "UB", "RoomId": "RPC3", "Theme": "", "Change": null },
+        { "HourId": 4, "SubjectId": " 5", "TeacherId": "UC", "RoomId": "R104", "Theme": "", "Change": null }
+      ]
+    },
+    {
+      "DayOfWeek": 2,
+      "Date": "2026-10-27T00:00:00+01:00",
+      "DayDescription": "",
+      "DayType": "WorkDay",
+      "Atoms": [
+        { "HourId": 9, "SubjectId": "20", "TeacherId": "UE", "RoomId": "RTEL", "Theme": "", "Change": null },
+        { "HourId": 2, "SubjectId": " 3", "TeacherId": "UA", "RoomId": "R212", "Theme": "Soustavy rovnic", "Change": null },
+        { "HourId": 3, "SubjectId": "11", "TeacherId": "UB", "RoomId": "RPC3", "Theme": "Cykly v Pythonu", "Change": null },
+        {
+          "HourId": 4, "SubjectId": " 5", "TeacherId": "UD", "RoomId": "R104", "Theme": "",
+          "Change": { "ChangeType": "Substitution", "Description": "Suplování za Učitel C", "TypeAbbrev": "Supl", "TypeName": "Suplování" }
+        },
+        { "HourId": 5, "SubjectId": null, "TeacherId": null, "RoomId": null, "Theme": "", "Change": null },
+        {
+          "HourId": 6, "SubjectId": null, "TeacherId": null, "RoomId": null, "Theme": "",
+          "Change": { "ChangeType": "Removed", "Description": "Zrušeno (Učitel F)", "TypeAbbrev": "Abs", "TypeName": "Absence" }
+        },
+        { "HourId": 7, "SubjectId": "14", "TeacherId": "UB", "RoomId": "RPC3", "Theme": "", "Change": null },
+        { "HourId": 8, "SubjectId": "20", "TeacherId": "UE", "RoomId": "RTEL", "Theme": "", "Change": null }
+      ]
+    },
+    {
+      "DayOfWeek": 3,
+      "Date": "2026-10-28T00:00:00+01:00",
+      "DayDescription": "Den vzniku samostatného československého státu",
+      "DayType": "Celebration",
+      "Atoms": []
+    },
+    {
+      "DayOfWeek": 4,
+      "Date": "2026-10-29T00:00:00+01:00",
+      "DayDescription": "Podzimní prázdniny",
+      "DayType": "Holiday",
+      "Atoms": []
+    },
+    {
+      "DayOfWeek": 5,
+      "Date": "2026-10-30T00:00:00+01:00",
+      "DayDescription": "Podzimní prázdniny",
+      "DayType": "Holiday",
+      "Atoms": []
+    }
+  ],
+  "Subjects": [
+    { "Id": "3", "Abbrev": "MAT", "Name": "Matematika" },
+    { "Id": "5", "Abbrev": "ANJ", "Name": "Anglický jazyk" },
+    { "Id": "11", "Abbrev": "PVA", "Name": "Programování a vývoj aplikací" },
+    { "Id": "14", "Abbrev": "WEB", "Name": "Webové technologie" },
+    { "Id": "20", "Abbrev": "TEV", "Name": "Tělesná výchova" }
+  ],
+  "Teachers": [
+    { "Id": "UA", "Abbrev": "UcA", "Name": "Učitel A" },
+    { "Id": "UB", "Abbrev": "UcB", "Name": "Učitel B" },
+    { "Id": "UC", "Abbrev": "UcC", "Name": "Učitel C" },
+    { "Id": "UD", "Abbrev": "UcD", "Name": "Učitel D" },
+    { "Id": "UE", "Abbrev": "UcE", "Name": "Učitel E" }
+  ],
+  "Rooms": [
+    { "Id": "R212", "Abbrev": "212", "Name": "Učebna 212" },
+    { "Id": "RPC3", "Abbrev": "PC3", "Name": "Počítačová učebna 3" },
+    { "Id": "R104", "Abbrev": "104", "Name": "Učebna 104" },
+    { "Id": "RTEL", "Abbrev": "TĚL", "Name": "Tělocvična" }
+  ]
+}
