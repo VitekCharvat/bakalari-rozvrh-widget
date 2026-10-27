@@ -52,7 +52,13 @@ Hotovo. Kdybys chtěl změnit školu nebo se odhlásit, spusť skript ve Scripta
 
 ## Vývoj
 
-Logika (výběr dne, okno hodin, zpracování odpovědi API) je napsaná bez Scriptable API, takže jde testovat v Node. Druhá sada testů spustí celý skript proti napodobenému Scriptable.
+Zdroják se upravuje v [`src/BakalariRozvrh.js`](src/BakalariRozvrh.js). Soubor `BakalariRozvrh.js` v kořeni je z něj vygenerovaný a obsahuje jen ASCII znaky (čeština je přepsaná jako `ě` apod.). Důvod: při přenosu e-mailem nebo zprávou iPhone někdy přečte UTF-8 špatně a z „Pondělí" se stane „Pond?l�". Po každé změně spusť:
+
+```bash
+npm run build
+```
+
+Logika (výběr dne, okno hodin, zpracování odpovědi API) je napsaná bez Scriptable API, takže jde testovat v Node. Druhá sada testů spustí celý vygenerovaný skript proti napodobenému Scriptable a třetí hlídá, že build je aktuální a čistě ASCII.
 
 ```bash
 npm test

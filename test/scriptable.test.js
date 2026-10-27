@@ -64,7 +64,6 @@ function spustSkript({ ted, keychain = {}, soubory = {}, odpovedi, online = true
     Color: Object.assign(class {}, { dynamic: () => ({}) }),
     Font: new Proxy({}, { get: () => () => ({}) }),
     Size: class {},
-    Device: { screenSize: () => ({ width: 390, height: 844 }) },
     URLScheme: { forRunningScript: () => "scriptable:///run/BakalariRozvrh" },
     config: { runsInWidget: true, widgetFamily: "medium" },
     args: { queryParameters: {} },
