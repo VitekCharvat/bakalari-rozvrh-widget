@@ -9,6 +9,8 @@ function spustSkript({ ted, keychain = {}, soubory = {}, odpovedi, online = true
   const texty = []
   const odpocty = []
   const pozadavky = []
+  const limity = []
+  const oznameni = []
   class Prvek {
     constructor() {
       this.deti = []
@@ -46,6 +48,7 @@ function spustSkript({ ted, keychain = {}, soubory = {}, odpovedi, online = true
       }
       async loadString() {
         pozadavky.push(this.url)
+        limity.push(this.timeoutInterval)
         if (!online) throw new Error("The Internet connection appears to be offline.")
         const odp = odpovedi(this)
         this.response.statusCode = odp.stav
@@ -64,6 +67,11 @@ function spustSkript({ ted, keychain = {}, soubory = {}, odpovedi, online = true
         fileExists: p => p in soubory,
         remove: p => delete soubory[p],
       }),
+    },
+    Notification: class {
+      async schedule() {
+        oznameni.push({ titulek: this.title, text: this.body })
+      }
     },
     ListWidget: class extends Prvek {},
     Color: Object.assign(class {}, { dynamic: () => ({}) }),
@@ -90,7 +98,7 @@ function spustSkript({ ted, keychain = {}, soubory = {}, odpovedi, online = true
       complete: () => {
         Object.keys(g).forEach(k => delete global[k])
         global.Date = RealDate
-        resolve({ widget, texty, odpocty, pozadavky, keychain, soubory })
+        resolve({ widget, texty, odpocty, pozadavky, limity, oznameni, keychain, soubory })
       },
     }
     Object.assign(global, g)
@@ -202,4 +210,104 @@ test("špatné heslo vede na výzvu k novému přihlášení", async () => {
   })
   assert.match(v.texty[0], /Přihlášení nevyšlo/)
   assert.ok(!("bakalari-rozvrh.refresh" in v.keychain), "neplatný refresh token se smazal")
+})
+
+// Stejný rozvrh, jen bez suplování a zrušených hodin
+const apiBezZmen = req => {
+  const odp = api(req)
+  const telo = JSON.parse(JSON.stringify(odp.telo))
+  for (const den of telo.Days || []) for (const a of den.Atoms || []) a.Change = null
+  return { ...odp, telo }
+}
+const DENIK = "/docs/bakalari-rozvrh-denik.json"
+const OZNAMENO = "/docs/bakalari-rozvrh-oznameno.json"
+const sUpozornenim = () => ({ ...prihlasen(), "bakalari-rozvrh.upozorneni": "1" })
+
+test("widget stahuje s limitem 8 s a čerstvá data 15 minut znovu nestahuje", async () => {
+  const prvni = await spustSkript({ ted: new Date(2026, 9, 27, 9, 0), keychain: prihlasen(), odpovedi: api })
+  assert.ok(prvni.pozadavky.length > 0)
+  assert.deepEqual(prvni.limity, prvni.pozadavky.map(() => 8))
+  const druhy = await spustSkript({
+    ted: new Date(2026, 9, 27, 9, 10),
+    keychain: prvni.keychain,
+    soubory: prvni.soubory,
+    odpovedi: api,
+  })
+  assert.equal(druhy.pozadavky.length, 0, "z paměti bez stahování")
+  assert.equal(druhy.texty[0], "Dnes · úterý 27. 10.")
+  assert.ok(druhy.texty.includes("PVA"))
+  assert.ok(druhy.texty.includes(" · zbývá "), "PVA právě probíhá")
+  assert.ok(!druhy.texty.some(t => t.includes("offline")))
+  const treti = await spustSkript({
+    ted: new Date(2026, 9, 27, 9, 20),
+    keychain: druhy.keychain,
+    soubory: druhy.soubory,
+    odpovedi: api,
+  })
+  assert.ok(treti.pozadavky.length > 0, "po 15 minutách se stahuje znovu")
+})
+
+test("deník obnov zaznamená doběhlý běh widgetu", async () => {
+  const v = await spustSkript({ ted: new Date(2026, 9, 27, 9, 0), keychain: prihlasen(), odpovedi: api })
+  const denik = JSON.parse(v.soubory[DENIK])
+  assert.equal(denik.length, 1)
+  assert.equal(denik[0].hotovo, true)
+  assert.equal(denik[0].zdroj, "staženo")
+  assert.equal(denik[0].stranka, 1)
+})
+
+test("bez zapnutých upozornění se nic neposílá", async () => {
+  const v = await spustSkript({ ted: new Date(2026, 9, 27, 7, 0), keychain: prihlasen(), odpovedi: api })
+  assert.deepEqual(v.oznameni, [])
+  assert.ok(!(OZNAMENO in v.soubory))
+})
+
+test("zapnutá upozornění ohlásí nové změny právě jednou", async () => {
+  const rano = await spustSkript({
+    ted: new Date(2026, 9, 27, 7, 0),
+    keychain: sUpozornenim(),
+    soubory: { [OZNAMENO]: JSON.stringify({ klice: [] }) },
+    odpovedi: apiBezZmen,
+  })
+  assert.deepEqual(rano.oznameni, [])
+  const zmena = await spustSkript({
+    ted: new Date(2026, 9, 27, 7, 30),
+    keychain: rano.keychain,
+    soubory: rano.soubory,
+    odpovedi: api,
+  })
+  assert.deepEqual(zmena.oznameni, [
+    { titulek: "Dnes: 2 změny v rozvrhu", text: "3. hodina: suplování (ANJ)\n5. hodina: odpadá" },
+  ])
+  const pozdeji = await spustSkript({
+    ted: new Date(2026, 9, 27, 8, 0),
+    keychain: zmena.keychain,
+    soubory: zmena.soubory,
+    odpovedi: api,
+  })
+  assert.ok(pozdeji.pozadavky.length > 0, "data se stáhla znovu")
+  assert.deepEqual(pozdeji.oznameni, [])
+})
+
+test("první běh po zapnutí stávající změny jen zapamatuje", async () => {
+  const v = await spustSkript({ ted: new Date(2026, 9, 27, 7, 0), keychain: sUpozornenim(), odpovedi: api })
+  assert.deepEqual(v.oznameni, [])
+  assert.equal(JSON.parse(v.soubory[OZNAMENO]).klice.length, 2)
+})
+
+test("v noci se neupozorňuje, změna se ohlásí ráno", async () => {
+  const noc = await spustSkript({
+    ted: new Date(2026, 9, 27, 5, 30),
+    keychain: sUpozornenim(),
+    soubory: { [OZNAMENO]: JSON.stringify({ klice: [] }) },
+    odpovedi: api,
+  })
+  assert.deepEqual(noc.oznameni, [])
+  const rano = await spustSkript({
+    ted: new Date(2026, 9, 27, 6, 45),
+    keychain: noc.keychain,
+    soubory: noc.soubory,
+    odpovedi: api,
+  })
+  assert.equal(rano.oznameni.length, 1)
 })

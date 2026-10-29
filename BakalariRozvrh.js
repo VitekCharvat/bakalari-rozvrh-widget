@@ -9,9 +9,13 @@
 // Licence MIT. Prihlasovaci udaje zustavaji jen v Klicence (Keychain) tohoto iPhonu.
 // Nova verze a navod: https://github.com/VitekCharvat/bakalari-rozvrh-widget
 
-const VERZE = "1.1.1"
+const VERZE = "1.2.0"
 const KLIC = "bakalari-rozvrh."
 const CACHE = "bakalari-rozvrh-cache.json"
+const DENIK = "bakalari-rozvrh-denik.json"
+const OZNAMENO = "bakalari-rozvrh-oznameno.json"
+// Widget stahuje nejvys jednou za tuto dobu, jinak bere ulozena data
+const CERSTVA_PAMET_MIN = 15
 const DNY = ["ned\u011ble", "pond\u011bl\u00ed", "\u00fater\u00fd", "st\u0159eda", "\u010dtvrtek", "p\u00e1tek", "sobota"]
 
 // ---------------------------------------------------------------------------
@@ -206,6 +210,72 @@ function dalsiObnova(den, ted) {
 
 const casText = d => `${d.getHours()}:${dvojmistne(d.getMinutes())}`
 
+// Ulozena data mladsi nez CERSTVA_PAMET_MIN se znovu nestahuji
+function cerstvaPamet(ulozeno, ted) {
+  const vek = ted.getTime() - new Date(ulozeno).getTime()
+  return vek >= 0 && vek < CERSTVA_PAMET_MIN * 60 * 1000
+}
+
+// Odkud jsou data ve widgetu, pro denik obnov
+function popisZdroje(stav) {
+  if (stav.chyba) return "chyba"
+  if (stav.info.problem) return stav.info.problem
+  return stav.info.stazene.length ? "sta\u017eeno" : "z pam\u011bti"
+}
+
+// Radek Diagnostiky: \u201e29. 10. 13:45 \u00b7 1,2 s \u00b7 stazeno\u201c
+function radekDeniku(z) {
+  const d = new Date(z.start)
+  const kdy = `${d.getDate()}. ${d.getMonth() + 1}. ${casText(d)}`
+  if (!z.hotovo) return `${kdy} \u00b7 nedob\u011bhl`
+  const casti = [kdy, `${(z.ms / 1000).toFixed(1).replace(".", ",")} s`, z.zdroj]
+  if (z.chyba) casti.push(z.chyba)
+  return casti.join(" \u00b7 ")
+}
+
+// V noci se upozorneni neposilaji, pockaji na rano
+function tichyRezim(ted) {
+  const h = ted.getHours()
+  return h >= 22 || h < 6
+}
+
+// Podle klice se pozna, jestli uz o zmene vime. Jiny popis nebo ucebna = nova zmena.
+function klicZmeny(den, h) {
+  return [den.datum, h.cislo, h.zmena.typ, h.zmena.popis, h.ucebna].join("|")
+}
+
+// Zmeny, o kterych ma smysl dat vedet: dnesni hodiny, ktere jeste neskoncily,
+// a nejblizsi dalsi den s vyukou. Vraci jen dny, kde nejaka zmena je.
+function zmenyKOznameni(dny, ted) {
+  const dnes = datumKlic(ted)
+  const dnesni = dny.find(d => d.datum === dnes)
+  const dalsi = dny.find(d => d.datum > dnes && d.hodiny.length)
+  return [
+    dnesni && { den: dnesni, hodiny: dnesni.hodiny.filter(h => h.zmena && h.konec > ted) },
+    dalsi && { den: dalsi, hodiny: dalsi.hodiny.filter(h => h.zmena) },
+  ].filter(x => x && x.hodiny.length)
+}
+
+const druhZmeny = h => (h.zrusena ? "odpad\u00e1" : /Subst/i.test(h.zmena.typ) ? "suplov\u00e1n\u00ed" : "zm\u011bna")
+
+// Titulek a text upozorneni na zmeny jednoho dne
+function textUpozorneni(den, hodiny, ted) {
+  const kdy = popisDne(den.datum, ted).split(" \u00b7 ")[0]
+  if (hodiny.length === 1) {
+    const h = hodiny[0]
+    const ucebna = !h.zrusena && h.ucebna ? `u\u010debna ${h.ucebna}` : ""
+    return {
+      titulek: `${kdy}, ${h.cislo}. hodina: ${druhZmeny(h)}`,
+      text: [h.predmet, ucebna, h.zmena.popis].filter(Boolean).join(" \u00b7 "),
+    }
+  }
+  const n = hodiny.length
+  return {
+    titulek: `${kdy}: ${n} ${n >= 5 ? "zm\u011bn" : "zm\u011bny"} v rozvrhu`,
+    text: hodiny.map(h => `${h.cislo}. hodina: ${druhZmeny(h)}${h.predmet ? ` (${h.predmet})` : ""}`).join("\n"),
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Scriptable: prihlaseni, stahovani, cache
 // ---------------------------------------------------------------------------
@@ -218,8 +288,13 @@ const Ulozene = {
   },
 }
 
+// Widget ma od iOS jen par sekund. Pomaly server nesmi beh zdrzet tak, aby ho iOS
+// ukoncil driv, nez se widget vykresli (vychozi limit Request je 60 s).
+const limitPozadavku = () => (config.runsInWidget ? 8 : 30)
+
 async function prihlasit(parametry) {
   const req = new Request(Ulozene.get("url") + "/api/login")
+  req.timeoutInterval = limitPozadavku()
   req.method = "POST"
   req.headers = { "Content-Type": "application/x-www-form-urlencoded" }
   req.body = Object.entries({ client_id: "ANDR", ...parametry })
@@ -264,6 +339,7 @@ async function ziskejToken() {
 async function stahniTyden(datum) {
   for (let pokus = 0; pokus < 2; pokus++) {
     const req = new Request(`${Ulozene.get("url")}/api/3/timetable/actual?date=${datum}`)
+    req.timeoutInterval = limitPozadavku()
     req.headers = { Authorization: "Bearer " + (await ziskejToken()) }
     const text = await req.loadString()
     const stav = req.response.statusCode
@@ -277,49 +353,71 @@ async function stahniTyden(datum) {
   throw new ChybaPrihlaseni("P\u0159ihl\u00e1\u0161en\u00ed vypr\u0161elo.")
 }
 
-function cestaCache() {
+function cestaSouboru(jmeno) {
   const fm = FileManager.local()
-  return fm.joinPath(fm.documentsDirectory(), CACHE)
+  return fm.joinPath(fm.documentsDirectory(), jmeno)
 }
 
-function nactiCache() {
+function nactiJson(jmeno, vychozi) {
   try {
-    return JSON.parse(FileManager.local().readString(cestaCache())) || {}
+    return JSON.parse(FileManager.local().readString(cestaSouboru(jmeno))) || vychozi
   } catch (e) {
-    return {}
+    return vychozi
   }
 }
+
+const ulozJson = (jmeno, data) => FileManager.local().writeString(cestaSouboru(jmeno), JSON.stringify(data))
+
+function smazSoubor(jmeno) {
+  const fm = FileManager.local()
+  if (fm.fileExists(cestaSouboru(jmeno))) fm.remove(cestaSouboru(jmeno))
+}
+
+const nactiCache = () => nactiJson(CACHE, {})
 
 function ulozDoCache(datum, data, ted) {
   const cache = nactiCache()
   cache[pondeliKlic(datum)] = { ulozeno: ted.toISOString(), data }
   const stare = pondeliKlic(datumKlic(new Date(ted.getTime() - 7 * 86400000)))
   for (const k of Object.keys(cache)) if (k < stare) delete cache[k]
-  FileManager.local().writeString(cestaCache(), JSON.stringify(cache))
+  ulozJson(CACHE, cache)
+}
+
+// Denik poslednich 30 behu widgetu pro Diagnostiku. Zaznam se stejnym id se prepise.
+function zapisDoDeniku(zaznam) {
+  const denik = nactiJson(DENIK, [])
+  const ostatni = (Array.isArray(denik) ? denik : []).filter(z => z.id !== zaznam.id)
+  ulozJson(DENIK, [...ostatni, zaznam].slice(-30))
 }
 
 // Online, a kdyz to nejde, z cache. `info` sbira, odkud data jsou (pro hlavicku widgetu).
+// S `info.zPameti` bere cerstvou cache bez stahovani, aby widget dobehl rychle.
 async function nactiTyden(datum, info, ted) {
-  try {
-    const data = await stahniTyden(datum)
-    ulozDoCache(datum, data, ted)
-    if (!info.aktualizace) info.aktualizace = ted
-    return data
-  } catch (e) {
-    const zCache = nactiCache()[pondeliKlic(datum)]
-    if (!zCache) throw e
-    info.problem = e instanceof ChybaPrihlaseni ? "p\u0159ihlas se" : "offline"
+  const zCache = nactiCache()[pondeliKlic(datum)]
+  const zCacheData = () => {
     const ulozeno = new Date(zCache.ulozeno)
     if (!info.aktualizace || ulozeno < info.aktualizace) info.aktualizace = ulozeno
     return zCache.data
   }
+  if (info.zPameti && zCache && cerstvaPamet(zCache.ulozeno, ted)) return zCacheData()
+  try {
+    const data = await stahniTyden(datum)
+    ulozDoCache(datum, data, ted)
+    if (!info.aktualizace) info.aktualizace = ted
+    info.stazene.push(data)
+    return data
+  } catch (e) {
+    if (!zCache) throw e
+    info.problem = e instanceof ChybaPrihlaseni ? "p\u0159ihlas se" : "offline"
+    return zCacheData()
+  }
 }
 
-async function nactiStav(ted) {
+async function nactiStav(ted, { zPameti = false } = {}) {
   if (!Ulozene.get("url")) {
     return { chyba: "Otev\u0159i skript ve Scriptable a p\u0159ihlas se do Bakal\u00e1\u0159\u016f." }
   }
-  const info = { aktualizace: null, problem: null }
+  const info = { aktualizace: null, problem: null, zPameti, stazene: [] }
   try {
     const den = await najdiDen(ted, d => nactiTyden(d, info, ted))
     if (!den) return { chyba: "V p\u0159\u00ed\u0161t\u00edch 4 t\u00fddnech \u017e\u00e1dn\u00e1 v\u00fduka. U\u017eij si volno!" }
@@ -330,6 +428,45 @@ async function nactiStav(ted) {
     }
     return { chyba: "Rozvrh se nepoda\u0159ilo na\u010d\u00edst a v pam\u011bti nic nen\u00ed. Zkus to pozd\u011bji." }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Scriptable: upozorneni na zmeny
+// ---------------------------------------------------------------------------
+
+async function posliOznameni(titulek, text) {
+  const n = new Notification()
+  n.title = titulek
+  n.body = text
+  n.threadIdentifier = "bakalari-rozvrh-zmeny"
+  n.openURL = URLScheme.forRunningScript() + "?zobraz=den"
+  await n.schedule()
+}
+
+// Ohlasi nove zmeny z prave stazenych dat (z pameti nic nehlasi, ta uz prosla).
+// Vraci pocet odeslanych upozorneni.
+async function ohlasZmeny(stav, ted) {
+  if (Ulozene.get("upozorneni") !== "1" || !stav.info || !stav.info.stazene.length) return 0
+  // Bez seznamu (prvni beh po zapnuti) se stavajici zmeny jen zapamatuji
+  const prvniBeh = !FileManager.local().fileExists(cestaSouboru(OZNAMENO))
+  const dnes = datumKlic(ted)
+  const { klice = [] } = nactiJson(OZNAMENO, { klice: [] })
+  const zname = klice.filter(k => k.split("|")[0] >= dnes)
+  const dny = stav.info.stazene.flatMap(data => sestavDny(data))
+  let odeslano = 0
+  for (const { den, hodiny } of zmenyKOznameni(dny, ted)) {
+    const nove = hodiny.filter(h => !zname.includes(klicZmeny(den, h)))
+    if (!nove.length) continue
+    if (!prvniBeh) {
+      if (tichyRezim(ted)) continue // nezapamatuje se, ohl\u00e1s\u00ed se r\u00e1no
+      const { titulek, text } = textUpozorneni(den, nove, ted)
+      await posliOznameni(titulek, text)
+      odeslano++
+    }
+    zname.push(...nove.map(h => klicZmeny(den, h)))
+  }
+  ulozJson(OZNAMENO, { klice: zname })
+  return odeslano
 }
 
 // ---------------------------------------------------------------------------
@@ -594,28 +731,61 @@ async function prihlasovaciDialog() {
 }
 
 function odhlasit() {
-  for (const k of ["url", "jmeno", "heslo", "access", "expirace", "refresh"]) Ulozene.smaz(k)
-  const fm = FileManager.local()
-  if (fm.fileExists(cestaCache())) fm.remove(cestaCache())
+  for (const k of ["url", "jmeno", "heslo", "access", "expirace", "refresh", "upozorneni"]) Ulozene.smaz(k)
+  smazSoubor(CACHE)
+  smazSoubor(OZNAMENO)
 }
 
 async function menu(ted) {
+  const zapnuto = Ulozene.get("upozorneni") === "1"
   const a = new Alert()
   a.title = "Bakal\u00e1\u0159i rozvrh"
   a.message = `P\u0159ihl\u00e1\u0161en: ${Ulozene.get("jmeno")}\n${Ulozene.get("url")}\nVerze ${VERZE}`
   a.addAction("Zobrazit rozvrh")
   a.addAction("N\u00e1hled widgetu")
+  a.addAction(`Upozorn\u011bn\u00ed na zm\u011bny: ${zapnuto ? "zapnuto" : "vypnuto"}`)
   a.addAction(`Vzhled: ${MOTIVY[zvolenyMotiv()]}`)
+  a.addAction("Diagnostika obnovy widgetu")
   a.addDestructiveAction("Odhl\u00e1sit / zm\u011bnit \u0161kolu")
   a.addCancelAction("Zav\u0159\u00edt")
   const volba = await a.present()
   if (volba === 0) await ukazRozvrh(ted)
   if (volba === 1) await nahledWidgetu(ted)
-  if (volba === 2) await vyberMotiv()
-  if (volba === 3) {
+  if (volba === 2) await prepniUpozorneni(ted)
+  if (volba === 3) await vyberMotiv()
+  if (volba === 4) await diagnostika()
+  if (volba === 5) {
     odhlasit()
     await prihlasovaciDialog()
   }
+}
+
+// Seznam ohlasenych zmen se maze pokazde, takze po zapnuti se nehlasi stare zmeny
+async function prepniUpozorneni(ted) {
+  smazSoubor(OZNAMENO)
+  if (Ulozene.get("upozorneni") === "1") {
+    Ulozene.smaz("upozorneni")
+    return upozorneni("Upozorn\u011bn\u00ed vypnut\u00e1", "Na zm\u011bny v rozvrhu t\u011b skript u\u017e upozor\u0148ovat nebude.")
+  }
+  Ulozene.set("upozorneni", "1")
+  await ohlasZmeny(await nactiStav(ted), ted)
+  // Zkusebni upozorneni zaroven vyvola dotaz iOS na povoleni
+  await posliOznameni(
+    "Upozorn\u011bn\u00ed na zm\u011bny zapnut\u00e1",
+    "Takhle ti d\u00e1m v\u011bd\u011bt o suplov\u00e1n\u00ed nebo zru\u0161en\u00e9 hodin\u011b. Chod\u00ed p\u0159i obnov\u011b widgetu, tak\u017ee se m\u016f\u017ee o p\u00e1r minut zpozdit."
+  )
+}
+
+async function diagnostika() {
+  const denik = nactiJson(DENIK, [])
+  const radky = (Array.isArray(denik) ? denik : []).slice(-15).reverse().map(radekDeniku)
+  await upozorneni(
+    "Diagnostika obnovy widgetu",
+    (radky.length ? radky.join("\n") : "Widget zat\u00edm ani jednou neb\u011b\u017eel.") +
+      "\n\nVelk\u00e9 mezery mezi \u010dasy znamenaj\u00ed, \u017ee iPhone widget nespou\u0161t\u011bl. " +
+      "\u201enedob\u011bhl\u201c znamen\u00e1, \u017ee iOS b\u011bh ukon\u010dil d\u0159\u00edv, ne\u017e se widget vykreslil. " +
+      "V \u00fasporn\u00e9m re\u017eimu se widgety obnovuj\u00ed m\u00e9n\u011b \u010dasto."
+  )
 }
 
 // Nahled ve Scriptable posouvat nejde (posouva se az zasobnik na plose), proto vyber stranky
@@ -650,12 +820,30 @@ async function vyberMotiv() {
   if (volba >= 0) Ulozene.set("motiv", klice[volba])
 }
 
+// Zaznam prave beziciho widgetu v deniku, at se do nej dostane i chyba z .catch
+let zaznamBehu = null
+
 async function main() {
   const ted = new Date()
   if (config.runsInWidget) {
     // Parametr widgetu = cislo stranky (1, 2\u2026) pro listovani v zasobniku widgetu
     const cislo = Math.max(1, parseInt(args.widgetParameter, 10) || 1)
-    Script.setWidget(vytvorWidget(await nactiStav(ted), ted, cislo))
+    // Zapisuje se hned, takze beh, ktery iOS ukonci, zustane v deniku jako nedobehly
+    const nahodne = Math.random().toString(36).slice(2, 6)
+    zaznamBehu = { id: `${ted.getTime()}-${nahodne}`, start: ted.toISOString(), stranka: cislo, hotovo: false }
+    zapisDoDeniku(zaznamBehu)
+    const stav = await nactiStav(ted, { zPameti: true })
+    Script.setWidget(vytvorWidget(stav, ted, cislo))
+    zaznamBehu.zdroj = popisZdroje(stav)
+    // Az po vykresleni: chyba upozorneni nesmi widget rozbit
+    try {
+      zaznamBehu.upozorneni = await ohlasZmeny(stav, ted)
+    } catch (e) {
+      zaznamBehu.chyba = "upozorn\u011bn\u00ed: " + e.message
+    }
+    zaznamBehu.hotovo = true
+    zaznamBehu.ms = Date.now() - ted.getTime()
+    zapisDoDeniku(zaznamBehu)
     return
   }
   if (!Ulozene.get("url") && !(await prihlasovaciDialog())) return
@@ -667,8 +855,14 @@ async function main() {
 if (typeof Script !== "undefined") {
   main()
     .catch(async e => {
-      if (config.runsInWidget) Script.setWidget(vytvorWidget({ chyba: e.message }, new Date()))
-      else await upozorneni("Chyba", e.message)
+      if (!config.runsInWidget) return upozorneni("Chyba", e.message)
+      Script.setWidget(vytvorWidget({ chyba: e.message }, new Date()))
+      if (!zaznamBehu) return
+      Object.assign(zaznamBehu, { hotovo: true, zdroj: "chyba", chyba: e.message })
+      zaznamBehu.ms = Date.now() - new Date(zaznamBehu.start).getTime()
+      try {
+        zapisDoDeniku(zaznamBehu)
+      } catch (e2) {}
     })
     .finally(() => Script.complete())
 }
@@ -689,5 +883,12 @@ if (typeof module !== "undefined") {
     shrnutiDne,
     popisDne,
     dalsiObnova,
+    cerstvaPamet,
+    popisZdroje,
+    radekDeniku,
+    tichyRezim,
+    klicZmeny,
+    zmenyKOznameni,
+    textUpozorneni,
   }
 }

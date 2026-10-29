@@ -134,3 +134,41 @@ test("dalsiObnova míří na nejbližší začátek nebo konec hodiny", () => {
   assert.deepEqual(R.dalsiObnova(utery, kdy("2026-10-27", "16:00")), kdy("2026-10-27", "17:00"))
   assert.deepEqual(R.dalsiObnova(null, kdy("2026-10-27", "16:00")), kdy("2026-10-27", "17:00"))
 })
+
+test("zmenyKOznameni vynechá odučené hodiny a textUpozorneni popíše jednu změnu", () => {
+  const ted = kdy("2026-10-27", "10:50")
+  const zmeny = R.zmenyKOznameni(dny1, ted)
+  assert.equal(zmeny.length, 1)
+  assert.equal(zmeny[0].den, utery)
+  assert.deepEqual(cisla(zmeny[0]), ["5"])
+  assert.deepEqual(R.textUpozorneni(utery, zmeny[0].hodiny, ted), {
+    titulek: "Dnes, 5. hodina: odpadá",
+    text: "Zrušeno (Učitel F)",
+  })
+})
+
+test("textUpozorneni večer předem píše o zítřku", () => {
+  const anj = utery.hodiny.find(h => h.cislo === "3")
+  assert.deepEqual(R.textUpozorneni(utery, [anj], kdy("2026-10-26", "18:00")), {
+    titulek: "Zítra, 3. hodina: suplování",
+    text: "ANJ · učebna 104 · Suplování za Učitel C",
+  })
+})
+
+test("tichyRezim platí od 22:00 do 5:59", () => {
+  assert.equal(R.tichyRezim(kdy("2026-10-27", "22:00")), true)
+  assert.equal(R.tichyRezim(kdy("2026-10-27", "5:59")), true)
+  assert.equal(R.tichyRezim(kdy("2026-10-27", "6:00")), false)
+})
+
+test("cerstvaPamet drží data 15 minut", () => {
+  const ted = kdy("2026-10-27", "9:20")
+  assert.equal(R.cerstvaPamet(kdy("2026-10-27", "9:06").toISOString(), ted), true)
+  assert.equal(R.cerstvaPamet(kdy("2026-10-27", "9:04").toISOString(), ted), false)
+})
+
+test("radekDeniku ukáže čas, délku a zdroj, nedoběhlý běh označí", () => {
+  const start = kdy("2026-10-29", "13:45").toISOString()
+  assert.equal(R.radekDeniku({ start, hotovo: true, ms: 1234, zdroj: "staženo" }), "29. 10. 13:45 · 1,2 s · staženo")
+  assert.equal(R.radekDeniku({ start, hotovo: false }), "29. 10. 13:45 · nedoběhl")
+})

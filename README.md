@@ -24,6 +24,7 @@ Funguje s Bakaláři jakékoli školy. Je to skript pro aplikaci [Scriptable](ht
 - **Po vyučování ukáže další školní den.** Večer zítřek, v pátek pondělí, přes prázdniny první den, kdy se zase učí.
 - **Suplování a změny** jsou oranžově, hodina, která odpadá, má místo učebny „odpadá".
 - **Klepnutím na widget** se otevře celý den včetně učitele, tématu a popisu změny.
+- **Upozornění na změny (volitelné).** Když zapneš v menu skriptu „Upozornění na změny", přijde ti zpráva o suplování nebo zrušené hodině dnes a v další školní den. Chodí při obnově widgetu, takže se můžou o pár desítek minut zpozdit. V noci (22:00–6:00) se nic neposílá, změna přijde ráno.
 - **Funguje i bez internetu.** Ukáže poslední stažený rozvrh a v hlavičce napíše „offline" s časem, kdy se data stáhla.
 - **Světlý, tmavý nebo automatický vzhled**, přepíná se v menu skriptu. Střední widget, počítá i s malým a velkým.
 
@@ -72,12 +73,12 @@ Přihlašovat se znovu nemusíš, údaje zůstávají v Klíčence. Jakou verzi 
 
 ## Omezení
 
-- **iOS rozhoduje, jak často se widget obnoví.** Skript si říká o obnovu na začátku a konci každé hodiny, ale iPhone to může o pár minut posunout, hlavně v úsporném režimu.
+- **iOS rozhoduje, jak často se widget obnoví.** Skript si říká o obnovu na začátku a konci každé hodiny, ale iPhone to může o pár minut posunout, hlavně v úsporném režimu. Rozvrh se ze školy stahuje nejvýš jednou za 15 minut, mezitím widget bere uložená data, aby se stihl vykreslit. Kdy se widget naposledy obnovil a jestli doběhl, uvidíš v menu skriptu v **Diagnostice obnovy widgetu**.
 - Typy změn v rozvrhu (`Canceled`, `Removed`, `Substitution`…) jsou převzaté z neoficiální dokumentace API. Kdyby se u tvé školy nějaká změna zobrazovala divně, [nahlas to](https://github.com/VitekCharvat/bakalari-rozvrh-widget/issues/new/choose).
 
 ## Něco nefunguje?
 
-Založ [issue](https://github.com/VitekCharvat/bakalari-rozvrh-widget/issues/new/choose). Pomůže screenshot widgetu, verze z menu skriptu a popis, co jsi čekal. **Nikdy do issue nedávej heslo ani svůj rozvrh se jmény učitelů.**
+Založ [issue](https://github.com/VitekCharvat/bakalari-rozvrh-widget/issues/new/choose). Pomůže screenshot widgetu, verze z menu skriptu a popis, co jsi čekal. Když se widget neobnovuje, přidej i screenshot z **Diagnostiky obnovy widgetu** v menu skriptu. **Nikdy do issue nedávej heslo ani svůj rozvrh se jmény učitelů.**
 
 ## Jak přispět
 
