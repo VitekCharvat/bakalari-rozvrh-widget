@@ -24,7 +24,7 @@ Funguje s Bakaláři jakékoli školy. Je to skript pro aplikaci [Scriptable](ht
 - **Po vyučování ukáže další školní den.** Večer zítřek, v pátek pondělí, přes prázdniny první den, kdy se zase učí.
 - **Suplování a změny** jsou oranžově, hodina, která odpadá, má místo učebny „odpadá".
 - **Klepnutím na widget** se otevře celý den včetně učitele, tématu a popisu změny.
-- **Upozornění na změny (volitelné).** Když zapneš v menu skriptu „Upozornění na změny", přijde ti zpráva o suplování nebo zrušené hodině dnes a v další školní den. Chodí při obnově widgetu, takže se můžou o pár desítek minut zpozdit. V noci (22:00–6:00) se nic neposílá, změna přijde ráno.
+- **Upozornění na změny (volitelné).** Když zapneš v menu skriptu „Upozornění na změny", přijde ti zpráva o suplování nebo zrušené hodině kdykoli v následujícím týdnu. Chodí při obnově widgetu, takže se můžou o pár desítek minut zpozdit. V noci (22:00–6:00) se nic neposílá, změna přijde ráno.
 - **Funguje i bez internetu.** Ukáže poslední stažený rozvrh a v hlavičce napíše „offline" s časem, kdy se data stáhla.
 - **Světlý, tmavý nebo automatický vzhled**, přepíná se v menu skriptu. Střední widget, počítá i s malým a velkým.
 

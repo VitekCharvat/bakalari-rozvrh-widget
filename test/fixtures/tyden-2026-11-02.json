@@ -14,6 +14,16 @@
         { "HourId": 2, "SubjectId": "5", "TeacherId": "UC", "RoomId": "R104", "Theme": "", "Change": null },
         { "HourId": 3, "SubjectId": "3", "TeacherId": "UA", "RoomId": "R212", "Theme": "", "Change": null }
       ]
+    },
+    {
+      "DayOfWeek": 2,
+      "Date": "2026-11-03T00:00:00+01:00",
+      "DayDescription": "",
+      "DayType": "WorkDay",
+      "Atoms": [
+        { "HourId": 2, "SubjectId": "3", "TeacherId": "UA", "RoomId": "R212", "Theme": "", "Change": null },
+        { "HourId": 3, "SubjectId": "5", "TeacherId": "UC", "RoomId": "R104", "Theme": "", "Change": null }
+      ]
     }
   ],
   "Subjects": [

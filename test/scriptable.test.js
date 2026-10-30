@@ -311,3 +311,25 @@ test("v noci se neupozorňuje, změna se ohlásí ráno", async () => {
   })
   assert.equal(rano.oznameni.length, 1)
 })
+
+test("změna v příštím týdnu se ohlásí, i když widget ukazuje dnešek", async () => {
+  // Bez dnešních změn, jen v úterý 3. 11. odpadá 1. hodina
+  const apiZmenaPristiTyden = req => {
+    const odp = apiBezZmen(req)
+    for (const den of odp.telo.Days || []) {
+      if (den.Date.startsWith("2026-11-03")) {
+        den.Atoms[0].Change = { ChangeType: "Canceled", Description: "Zrušeno (Učitel A)" }
+      }
+    }
+    return odp
+  }
+  const v = await spustSkript({
+    ted: new Date(2026, 9, 27, 7, 0),
+    keychain: sUpozornenim(),
+    soubory: { [OZNAMENO]: JSON.stringify({ klice: [] }) },
+    odpovedi: apiZmenaPristiTyden,
+  })
+  assert.equal(v.texty[0], "Dnes · úterý 27. 10.")
+  assert.ok(v.pozadavky.some(u => u.includes("date=2026-11-02")), "příští týden se dotáhl")
+  assert.deepEqual(v.oznameni, [{ titulek: "Úterý 3. 11., 1. hodina: odpadá", text: "MAT · Zrušeno (Učitel A)" }])
+})

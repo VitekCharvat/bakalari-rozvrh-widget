@@ -147,6 +147,27 @@ test("zmenyKOznameni vynechá odučené hodiny a textUpozorneni popíše jednu z
   })
 })
 
+test("zmenyKOznameni hlídá týden dopředu, i přes víkend do dalšího týdne", () => {
+  const tyden = JSON.parse(JSON.stringify(tyden2))
+  tyden.Days[1].Atoms[0].Change = { ChangeType: "Canceled", Description: "Zrušeno (Učitel A)" }
+  const dny = [...dny1, ...R.sestavDny(tyden)]
+  const ted = kdy("2026-10-30", "12:00") // pátek
+  const zmeny = R.zmenyKOznameni(dny, ted)
+  assert.deepEqual(zmeny.map(z => z.den.datum), ["2026-11-03"])
+  assert.deepEqual(R.textUpozorneni(zmeny[0].den, zmeny[0].hodiny, ted), {
+    titulek: "Úterý 3. 11., 1. hodina: odpadá",
+    text: "MAT · Zrušeno (Učitel A)",
+  })
+  // V pondělí 26. 10. je úterý 3. 11. víc než týden daleko
+  assert.deepEqual(R.zmenyKOznameni(dny, kdy("2026-10-26", "18:00")).map(z => z.den.datum), ["2026-10-27"])
+})
+
+test("tydnyKHlidani vrací tenhle a příští týden", () => {
+  assert.deepEqual(R.tydnyKHlidani(kdy("2026-10-30", "12:00")), ["2026-10-26", "2026-11-02"])
+  assert.deepEqual(R.tydnyKHlidani(kdy("2026-11-01", "12:00")), ["2026-10-26", "2026-11-02"]) // neděle
+  assert.deepEqual(R.tydnyKHlidani(kdy("2026-11-02", "7:00")), ["2026-11-02", "2026-11-09"])
+})
+
 test("textUpozorneni večer předem píše o zítřku", () => {
   const anj = utery.hodiny.find(h => h.cislo === "3")
   assert.deepEqual(R.textUpozorneni(utery, [anj], kdy("2026-10-26", "18:00")), {

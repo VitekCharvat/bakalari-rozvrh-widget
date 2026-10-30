@@ -7,13 +7,15 @@
 // Licence MIT. Přihlašovací údaje zůstávají jen v Klíčence (Keychain) tohoto iPhonu.
 // Nová verze a návod: https://github.com/VitekCharvat/bakalari-rozvrh-widget
 
-const VERZE = "1.2.0"
+const VERZE = "1.2.1"
 const KLIC = "bakalari-rozvrh."
 const CACHE = "bakalari-rozvrh-cache.json"
 const DENIK = "bakalari-rozvrh-denik.json"
 const OZNAMENO = "bakalari-rozvrh-oznameno.json"
 // Widget stahuje nejvýš jednou za tuto dobu, jinak bere uložená data
 const CERSTVA_PAMET_MIN = 15
+// Na kolik dní dopředu se hlídají změny v rozvrhu
+const HLIDAT_DNU = 7
 const DNY = ["neděle", "pondělí", "úterý", "středa", "čtvrtek", "pátek", "sobota"]
 
 // ---------------------------------------------------------------------------
@@ -242,16 +244,23 @@ function klicZmeny(den, h) {
   return [den.datum, h.cislo, h.zmena.typ, h.zmena.popis, h.ucebna].join("|")
 }
 
+const posunDny = (ted, n) => new Date(ted.getFullYear(), ted.getMonth(), ted.getDate() + n)
+
 // Změny, o kterých má smysl dát vědět: dnešní hodiny, které ještě neskončily,
-// a nejbližší další den s výukou. Vrací jen dny, kde nějaká změna je.
+// a všechny hodiny v následujících HLIDAT_DNU dnech. Vrací jen dny, kde nějaká změna je.
 function zmenyKOznameni(dny, ted) {
   const dnes = datumKlic(ted)
-  const dnesni = dny.find(d => d.datum === dnes)
-  const dalsi = dny.find(d => d.datum > dnes && d.hodiny.length)
-  return [
-    dnesni && { den: dnesni, hodiny: dnesni.hodiny.filter(h => h.zmena && h.konec > ted) },
-    dalsi && { den: dalsi, hodiny: dalsi.hodiny.filter(h => h.zmena) },
-  ].filter(x => x && x.hodiny.length)
+  const posledni = datumKlic(posunDny(ted, HLIDAT_DNU))
+  return dny
+    .filter(d => d.datum >= dnes && d.datum <= posledni)
+    .map(d => ({ den: d, hodiny: d.hodiny.filter(h => h.zmena && (d.datum > dnes || h.konec > ted)) }))
+    .filter(x => x.hodiny.length)
+}
+
+// Pondělí týdnů, do kterých hlídané dny spadají (vždycky tenhle a příští)
+function tydnyKHlidani(ted) {
+  const tydny = [0, HLIDAT_DNU].map(n => pondeliKlic(datumKlic(posunDny(ted, n))))
+  return [...new Set(tydny)]
 }
 
 const druhZmeny = h => (h.zrusena ? "odpadá" : /Subst/i.test(h.zmena.typ) ? "suplování" : "změna")
@@ -391,6 +400,7 @@ function zapisDoDeniku(zaznam) {
 // Online, a když to nejde, z cache. `info` sbírá, odkud data jsou (pro hlavičku widgetu).
 // S `info.zPameti` bere čerstvou cache bez stahování, aby widget doběhl rychle.
 async function nactiTyden(datum, info, ted) {
+  info.nactene.push(pondeliKlic(datum))
   const zCache = nactiCache()[pondeliKlic(datum)]
   const zCacheData = () => {
     const ulozeno = new Date(zCache.ulozeno)
@@ -415,7 +425,7 @@ async function nactiStav(ted, { zPameti = false } = {}) {
   if (!Ulozene.get("url")) {
     return { chyba: "Otevři skript ve Scriptable a přihlas se do Bakalářů." }
   }
-  const info = { aktualizace: null, problem: null, zPameti, stazene: [] }
+  const info = { aktualizace: null, problem: null, zPameti, stazene: [], nactene: [] }
   try {
     const den = await najdiDen(ted, d => nactiTyden(d, info, ted))
     if (!den) return { chyba: "V příštích 4 týdnech žádná výuka. Užij si volno!" }
@@ -444,7 +454,16 @@ async function posliOznameni(titulek, text) {
 // Ohlásí nové změny z právě stažených dat (z paměti nic nehlásí, ta už prošla).
 // Vrací počet odeslaných upozornění.
 async function ohlasZmeny(stav, ted) {
-  if (Ulozene.get("upozorneni") !== "1" || !stav.info || !stav.info.stazene.length) return 0
+  if (Ulozene.get("upozorneni") !== "1" || !stav.info) return 0
+  // Widget stahuje jen týden, který ukazuje. Zbytek hlídaných dnů se dotáhne tady,
+  // až po vykreslení, a platí pro něj stejná 15minutová paměť.
+  for (const tyden of tydnyKHlidani(ted)) {
+    if (stav.info.nactene.includes(tyden)) continue
+    try {
+      await nactiTyden(tyden, stav.info, ted)
+    } catch (e) {} // offline a bez paměti: ohlásí se aspoň to, co se stáhlo
+  }
+  if (!stav.info.stazene.length) return 0
   // Bez seznamu (první běh po zapnutí) se stávající změny jen zapamatují
   const prvniBeh = !FileManager.local().fileExists(cestaSouboru(OZNAMENO))
   const dnes = datumKlic(ted)
@@ -887,6 +906,7 @@ if (typeof module !== "undefined") {
     tichyRezim,
     klicZmeny,
     zmenyKOznameni,
+    tydnyKHlidani,
     textUpozorneni,
   }
 }
