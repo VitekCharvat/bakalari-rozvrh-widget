@@ -366,8 +366,11 @@ function cestaSouboru(jmeno) {
 }
 
 function nactiJson(jmeno, vychozi) {
+  // Scriptable chybu čtení chybějícího souboru zapíše do logu, i když ji kód zachytí
+  const fm = FileManager.local()
+  if (!fm.fileExists(cestaSouboru(jmeno))) return vychozi
   try {
-    return JSON.parse(FileManager.local().readString(cestaSouboru(jmeno))) || vychozi
+    return JSON.parse(fm.readString(cestaSouboru(jmeno))) || vychozi
   } catch (e) {
     return vychozi
   }
