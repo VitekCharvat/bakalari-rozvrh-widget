@@ -63,11 +63,3 @@ GitHub u každého pull requestu sám spustí testy. Když svítí červeně, kl
 - Commit zprávy česky, krátký první řádek, co a proč.
 - Testovací data musí být **anonymní**: místo jmen „Učitel A", žádné skutečné adresy škol. Skutečné odpovědi API si můžeš uložit jako `test/fixtures/skutecne-*.json`, git je ignoruje.
 
-## Vydání nové verze (správce)
-
-1. Zvyš `VERZE` v `src/BakalariRozvrh.js` a `version` v `package.json`.
-2. `npm run build` a `npm test`.
-3. Commit, push a release:
-   ```bash
-   gh release create v1.2.0 --title "1.2.0" --notes "Co je nového…"
-   ```
